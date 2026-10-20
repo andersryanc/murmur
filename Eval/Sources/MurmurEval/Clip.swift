@@ -1,4 +1,5 @@
 import Foundation
+import MurmurCore
 
 /// Where the eval keeps its inputs and outputs. Resolved from this source file's location so the
 /// CLI works no matter which directory `swift run` is invoked from.
@@ -9,13 +10,7 @@ enum Paths {
         .deletingLastPathComponent()  // Eval
     static let clips = evalRoot.appending(path: "clips")
     static let results = evalRoot.appending(path: "results")
-    static let cleanupPrompt = evalRoot.appending(path: "prompts/cleanup.md")
     static let vocabulary = evalRoot.appending(path: "vocabulary.txt")
-}
-
-/// The app the dictation is headed for. The cleanup stage formats differently for each.
-enum TargetContext: String, Codable, CaseIterable {
-    case plain, chat, email, notes, code
 }
 
 /// Sidecar metadata stored next to each recording as `<name>.json`.

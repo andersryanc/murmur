@@ -1,0 +1,112 @@
+import Foundation
+
+/// The LLM post-processing pass: raw transcript in, text-you-meant-to-type out.
+/// Swift has no official Anthropic SDK, so this calls the Messages API over HTTP.
+public struct ClaudeCleaner: Sendable {
+    public struct Options: Sendable {
+        public var model = "claude-haiku-5-5"
+        /// Thinking off keeps latency low for a short rewrite.
+        public var thinking = false
+        public var effort = "low"
+        public init() {}
+    }
+
+    public let apiKey: String
+    public var systemPrompt: String
+    public var vocabulary: [String]
+    public var options: Options
+
+    public init(apiKey: String, systemPrompt: String = CleanupPrompt.system,
+                vocabulary: [String] = [], options: Options = Options()) {
+        self.apiKey = apiKey
+        self.systemPrompt = systemPrompt
+        self.vocabulary = vocabulary
+        self.options = options
+    }
+
+    public func clean(_ transcript: String, context: TargetContext) async throws -> String {
+        var user = "<context>\(context.rawValue)</context>\n"
+        if !vocabulary.isEmpty {
+            user += "<vocabulary>\n\(vocabulary.joined(separator: "\n"))\n</vocabulary>\n"
+        }
+        user += "<transcript>\n\(transcript)\n</transcript>"
+
+        let body: [String: Any] = [
+            "model": options.model,
+            "max_tokens": 4096,
+            "system": systemPrompt,
+            "messages": [["role": "user", "content": user]],
+            "output_config": ["effort": options.effort],
+            "thinking": ["type": options.thinking ? "adaptive" : "disabled"],
+        ]
+
+        var request = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.timeoutInterval = 20
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else {
+            throw MurmurError("Claude API returned \(status): \(String(decoding: data, as: UTF8.self))")
+        }
+
+        let message = try JSONDecoder().decode(MessageResponse.self, from: data)
+        switch message.stop_reason {
+        case "refusal": throw MurmurError("Claude declined to clean this transcript (stop_reason: refusal)")
+        case "max_tokens": throw MurmurError("Cleanup output hit max_tokens and was truncated")
+        default: break
+        }
+        return message.content
+            .filter { $0.type == "text" }
+            .compactMap(\.text)
+            .joined()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private struct MessageResponse: Decodable {
+        struct Block: Decodable {
+            let type: String
+            let text: String?
+        }
+        let content: [Block]
+        let stop_reason: String?
+    }
+}
+
+/// Where the Anthropic API key lives.
+public enum APIKey {
+    /// Keychain item (service, account), created with
+    /// `security add-generic-password -s com.plyhdrn.murmur -a anthropic-api-key -w`.
+    public static let keychainService = "com.plyhdrn.murmur"
+    public static let keychainAccount = "anthropic-api-key"
+
+    /// `ANTHROPIC_API_KEY` wins if set; otherwise read the login Keychain.
+    /// Goes through `/usr/bin/security` because the item is created with that tool, so its access
+    /// list already trusts it and a rebuilt binary won't trigger a fresh Keychain prompt each time.
+    public static func load() -> String? {
+        if let key = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"], !key.isEmpty { return key }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = ["find-generic-password", "-s", keychainService, "-a", keychainAccount, "-w"]
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return nil }
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+
+        let key = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return key.isEmpty ? nil : key
+    }
+}
+
+public struct MurmurError: Error, CustomStringConvertible, Sendable {
+    public let description: String
+    public init(_ description: String) { self.description = description }
+}

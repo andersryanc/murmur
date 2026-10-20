@@ -1,0 +1,248 @@
+import AppKit
+import MurmurCore
+import Observation
+import ServiceManagement
+
+/// One finished dictation, kept in the menu so you can copy it again.
+struct Dictation: Identifiable {
+    let id = UUID()
+    let text: String
+    let raw: String
+    let appName: String?
+    let date = Date()
+}
+
+/// Runs the whole push-to-talk loop: key down → record → key up → transcribe → clean → paste.
+@Observable
+final class AppModel {
+    enum Phase: Equatable {
+        case loading(String)
+        case ready
+        case recording
+        case processing
+        case failed(String)
+    }
+
+    private(set) var phase: Phase = .loading("Starting…")
+    /// Recent loudness values for the HUD's level meter, newest last.
+    private(set) var levels: [Float] = Array(repeating: 0, count: AppModel.levelCount)
+    private(set) var history: [Dictation] = []
+    private(set) var microphoneGranted = Permissions.microphoneGranted
+    private(set) var accessibilityGranted = Permissions.accessibilityGranted
+    private(set) var hasAPIKey = false
+    /// Shown in the HUD for a moment after a dictation, e.g. when cleanup failed.
+    private(set) var notice: String?
+
+    var hotkey: Hotkey {
+        didSet {
+            UserDefaults.standard.set(hotkey.rawValue, forKey: "hotkey")
+            hotkeys.hotkey = hotkey
+        }
+    }
+
+    var cleanupEnabled: Bool {
+        didSet { UserDefaults.standard.set(cleanupEnabled, forKey: "cleanupEnabled") }
+    }
+
+    var launchAtLogin: Bool {
+        get { SMAppService.mainApp.status == .enabled }
+        set {
+            do {
+                if newValue { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            } catch {
+                flash("Couldn't change Login Items: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    static let levelCount = 14
+    /// Holds shorter than this are treated as accidental taps.
+    private static let minimumHold: TimeInterval = 0.3
+
+    private let engine = ParakeetEngine()
+    private let capture = AudioCapture()
+    private let hotkeys = HotkeyMonitor()
+    private var hud: HUDController?
+    private var recordingStarted: Date?
+    private var targetApp: NSRunningApplication?
+    private var chordCancelled = false
+
+    init() {
+        let defaults = UserDefaults.standard
+        hotkey = defaults.string(forKey: "hotkey").flatMap(Hotkey.init) ?? .fn
+        cleanupEnabled = defaults.object(forKey: "cleanupEnabled") as? Bool ?? true
+
+        hotkeys.hotkey = hotkey
+        hotkeys.onPress = { [weak self] in self?.startRecording() }
+        hotkeys.onRelease = { [weak self] in self?.finishRecording() }
+        hotkeys.onChord = { [weak self] in self?.cancelForChord() }
+
+        capture.onLevel = { [weak self] level in
+            Task { @MainActor in self?.push(level: level) }
+        }
+
+        hud = HUDController(model: self)
+        Task { await start() }
+    }
+
+    var statusText: String {
+        switch phase {
+        case .loading(let message): message
+        case .ready: "Hold \(hotkey.shortLabel) to dictate"
+        case .recording: "Listening…"
+        case .processing: "Transcribing…"
+        case .failed(let message): message
+        }
+    }
+
+    // MARK: - Startup
+
+    private func start() async {
+        hasAPIKey = APIKey.load() != nil
+
+        if !microphoneGranted {
+            microphoneGranted = await Permissions.requestMicrophone()
+        }
+        if !accessibilityGranted {
+            Permissions.promptForAccessibility()
+        }
+        hotkeys.install()
+        watchAccessibility()
+
+        phase = .loading("Loading speech model…")
+        do {
+            try await engine.prepare()
+            // Warm the Neural Engine so the first real dictation isn't slow.
+            _ = try? await engine.transcribe([Float](repeating: 0, count: Int(sttSampleRate)))
+            phase = .ready
+        } catch {
+            phase = .failed("Speech model failed to load: \(error.localizedDescription)")
+        }
+    }
+
+    /// Accessibility is granted in System Settings while the app is running, and the key
+    /// monitors only start receiving events once it is, so poll and reinstall when it flips.
+    private func watchAccessibility() {
+        Task {
+            while true {
+                try? await Task.sleep(for: .seconds(1))
+                let granted = Permissions.accessibilityGranted
+                if granted != accessibilityGranted {
+                    accessibilityGranted = granted
+                    if granted { hotkeys.install() }
+                }
+                microphoneGranted = Permissions.microphoneGranted
+            }
+        }
+    }
+
+    func refreshAPIKey() {
+        hasAPIKey = APIKey.load() != nil
+    }
+
+    // MARK: - Push to talk
+
+    private func startRecording() {
+        guard phase == .ready else { return }
+        guard microphoneGranted else {
+            flash("Murmur needs microphone access")
+            return
+        }
+        do {
+            try capture.start()
+        } catch {
+            flash("Couldn't start the microphone: \(error)")
+            return
+        }
+        targetApp = NSWorkspace.shared.frontmostApplication
+        recordingStarted = Date()
+        chordCancelled = false
+        notice = nil
+        levels = Array(repeating: 0, count: Self.levelCount)
+        phase = .recording
+        hud?.show()
+    }
+
+    private func cancelForChord() {
+        guard phase == .recording else { return }
+        chordCancelled = true
+        _ = try? capture.stop()
+        phase = .ready
+        hud?.hide()
+    }
+
+    private func finishRecording() {
+        guard phase == .recording, !chordCancelled else { return }
+        let held = Date().timeIntervalSince(recordingStarted ?? Date())
+        let samples = (try? capture.stop()) ?? []
+
+        guard held >= Self.minimumHold, !samples.isEmpty else {
+            phase = .ready
+            hud?.hide()
+            return
+        }
+
+        phase = .processing
+        let context = TargetContext(bundleID: targetApp?.bundleIdentifier)
+        let appName = targetApp?.localizedName
+        Task { await process(samples, context: context, appName: appName) }
+    }
+
+    private func process(_ samples: [Float], context: TargetContext, appName: String?) async {
+        defer {
+            if phase == .processing { phase = .ready }
+            hud?.hide(after: notice == nil ? 0 : 2.5)
+        }
+
+        let raw: String
+        do {
+            raw = try await engine.transcribe(samples)
+        } catch {
+            notice = "Transcription failed"
+            return
+        }
+        guard !raw.isEmpty else { return }
+
+        var text = raw
+        if cleanupEnabled {
+            if let key = APIKey.load() {
+                hasAPIKey = true
+                do {
+                    text = try await ClaudeCleaner(apiKey: key).clean(raw, context: context)
+                } catch {
+                    notice = "Cleanup failed, pasted raw text"
+                }
+            } else {
+                hasAPIKey = false
+                notice = "No API key, pasted raw text"
+            }
+        }
+        guard !text.isEmpty else { return }
+
+        switch Paster.paste(text) {
+        case .pasted: break
+        case .copiedOnly: notice = "Copied. Press ⌘V to paste"
+        }
+        history.insert(Dictation(text: text, raw: raw, appName: appName), at: 0)
+        if history.count > 10 { history.removeLast() }
+    }
+
+    // MARK: - Helpers
+
+    private func push(level: Float) {
+        guard phase == .recording else { return }
+        levels.removeFirst()
+        levels.append(level)
+    }
+
+    private func flash(_ message: String) {
+        notice = message
+        hud?.show()
+        hud?.hide(after: 2.5)
+    }
+
+    func copy(_ dictation: Dictation) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(dictation.text, forType: .string)
+    }
+}

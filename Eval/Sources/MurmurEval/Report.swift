@@ -1,4 +1,5 @@
 import Foundation
+import MurmurCore
 
 struct EngineResult: Codable {
     let engine: String

@@ -7,3 +7,7 @@ DerivedData/
 Eval/clips/*.wav
 Eval/clips/*.m4a
 Eval/results/
+
+# Generated
+App/Murmur.xcodeproj/
+build/

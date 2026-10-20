@@ -1,4 +1,5 @@
 import Foundation
+import MurmurCore
 
 let usage = """
 murmur-eval: compare speech-to-text engines and the Claude cleanup pass on your own voice.
@@ -7,12 +8,13 @@ USAGE
   swift run MurmurEval record <name> [--context plain|chat|email|notes|code]
       Record a clip from the mic into clips/<name>.wav, then type what you said.
 
-  swift run MurmurEval run [--engines parakeet,apple] [--no-cleanup] [--thinking] [--effort low]
+  swift run MurmurEval run [--engines parakeet,apple] [--no-cleanup] [--thinking] [--effort low] [--prompt draft.md]
       Transcribe every clip in clips/ with each engine, clean each transcript with Claude,
       and write a report to results/.
 
   swift run MurmurEval clean "<raw transcript>" [--context notes]
-      Run only the cleanup pass on a string, to iterate on prompts/cleanup.md quickly.
+      Run only the cleanup pass on a string. Add --prompt draft.md to try a prompt edit before
+      moving it into Core/Sources/MurmurCore/CleanupPrompt.swift.
 
 Engines: \(Engines.all.keys.sorted().joined(separator: ", ")) (default: \(Engines.defaults.joined(separator: ",")))
 Cleanup uses claude-haiku-5-5. The key comes from ANTHROPIC_API_KEY or the Keychain item com.plyhdrn.murmur.
@@ -43,6 +45,18 @@ struct Args {
         }
         return context
     }
+}
+
+/// Builds the cleanup pass from flags: `--thinking`, `--effort`, and `--prompt <file>` to try a
+/// draft system prompt without rebuilding. Returns nil when no API key is available.
+func makeCleaner(_ args: Args) throws -> ClaudeCleaner? {
+    guard let key = APIKey.load() else { return nil }
+    var options = ClaudeCleaner.Options()
+    options.thinking = args.flags.contains("thinking")
+    if let effort = args.options["effort"] { options.effort = effort }
+    let system = try args.options["prompt"].map { try String(contentsOfFile: $0, encoding: .utf8) }
+        ?? CleanupPrompt.system
+    return ClaudeCleaner(apiKey: key, systemPrompt: system, vocabulary: loadVocabulary(), options: options)
 }
 
 func prompt(_ question: String) -> String? {
@@ -84,10 +98,7 @@ func run(_ args: Args) async throws {
 
     var cleaner: ClaudeCleaner?
     if !args.flags.contains("no-cleanup") {
-        var options = ClaudeCleaner.Options()
-        options.thinking = args.flags.contains("thinking")
-        if let effort = args.options["effort"] { options.effort = effort }
-        cleaner = try ClaudeCleaner.fromEnvironment(options: options)
+        cleaner = try makeCleaner(args)
         if cleaner == nil { print("⚠️  No Anthropic API key found (env or Keychain), so the cleanup pass is skipped.\n") }
     }
 
@@ -95,7 +106,7 @@ func run(_ args: Args) async throws {
         print("Preparing \(engine.id)…")
         try await engine.prepare()
         // Warm-up so the first clip's latency doesn't include Neural Engine model compilation.
-        _ = try? await engine.transcribe(clips[0].audio)
+        _ = try? await engine.transcribe(file: clips[0].audio)
     }
 
     var results: [ClipResult] = []
@@ -106,7 +117,7 @@ func run(_ args: Args) async throws {
                                     reference: clip.meta.reference, intended: clip.meta.intended, engines: [])
         for engine in engines {
             do {
-                let (raw, sttSeconds) = try await timed { try await engine.transcribe(clip.audio) }
+                let (raw, sttSeconds) = try await timed { try await engine.transcribe(file: clip.audio) }
                 let wer = clip.meta.reference.map { wordErrorRate(hypothesis: raw, reference: $0) }
                 var result = EngineResult(engine: engine.id, raw: raw, sttSeconds: sttSeconds, wer: wer)
                 print("  \(engine.id) [\(ms(sttSeconds))\(wer.map { ", WER \(pct($0))" } ?? "")]: \(raw)")
@@ -141,10 +152,7 @@ func run(_ args: Args) async throws {
 
 func clean(_ args: Args) async throws {
     guard let text = args.positionals.first else { throw EvalError("clean needs a transcript string") }
-    var options = ClaudeCleaner.Options()
-    options.thinking = args.flags.contains("thinking")
-    if let effort = args.options["effort"] { options.effort = effort }
-    guard let cleaner = try ClaudeCleaner.fromEnvironment(options: options) else {
+    guard let cleaner = try makeCleaner(args) else {
         throw EvalError("No Anthropic API key found. Store one in the Keychain (see README) or set ANTHROPIC_API_KEY.")
     }
     let (cleaned, seconds) = try await timed { try await cleaner.clean(text, context: try args.context()) }
@@ -156,7 +164,7 @@ func clean(_ args: Args) async throws {
 
 var argv = Array(CommandLine.arguments.dropFirst())
 let command = argv.isEmpty ? "help" : argv.removeFirst()
-let args = Args(argv, valued: ["context", "engines", "effort"])
+let args = Args(argv, valued: ["context", "engines", "effort", "prompt"])
 
 do {
     switch command {

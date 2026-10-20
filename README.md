@@ -11,9 +11,30 @@ hotkey ─▶ mic capture ─▶ on-device STT ─▶ Claude cleanup ─▶ past
 
 Most of the quality comes from the cleanup pass. It fixes misheard words, drops filler and false starts, keeps only the final version of a self-correction, adds punctuation, and formats spoken lists as markdown when the target app allows it.
 
-## Status
+## Layout
 
-**Phase 0: eval harness** ([`Eval/`](Eval)). Checks STT engines and the cleanup prompt against your own voice before any app UI exists.
+| Folder | What |
+|---|---|
+| [`App/`](App) | The menu-bar app. `App/project.yml` generates the Xcode project with XcodeGen. |
+| [`Core/`](Core) | `MurmurCore`: audio capture, speech engines, Claude cleanup and the cleanup prompt. Shared by the app and the eval. |
+| [`Eval/`](Eval) | CLI harness that scores engines and the cleanup prompt against recordings of your voice. |
+
+## The app
+
+```bash
+brew install xcodegen   # once
+./scripts/install.sh    # build Release, install to /Applications, launch
+```
+
+On first launch, allow **Microphone** and turn on Murmur under **System Settings › Privacy & Security › Accessibility**. Accessibility lets Murmur see the push-to-talk key and paste at your cursor. Both permissions persist across rebuilds because the app is signed with your Apple Development certificate.
+
+Hold **fn** (changeable in the menu), speak, and release. The text is pasted wherever your cursor is.
+
+- **fn key:** set **System Settings › Keyboard › "Press 🌐 key to"** to **Do Nothing**, or macOS will open the emoji picker or its own dictation. You can pick Right ⌥ or Right ⌘ instead.
+- **Chords are ignored:** typing another key while holding the hotkey (e.g. ⌥← to jump words) cancels the recording.
+- **Context:** the frontmost app sets the cleanup style. Slack and Messages get chat style, Mail gets email, Notes and Obsidian get markdown notes, editors and terminals get code.
+- **Fallbacks:** without an API key, or if Claude fails, Murmur pastes the raw Parakeet transcript and says so. Without Accessibility, it copies the text so you can ⌘V.
+- **Your clipboard** is restored after each paste.
 
 ## Eval harness
 
@@ -39,7 +60,7 @@ swift build
 .build/debug/MurmurEval run
 .build/debug/MurmurEval run --engines parakeet,parakeet-ultra,apple
 
-# Iterate on prompts/cleanup.md without audio.
+# Try the cleanup pass without audio. Add --prompt draft.md to test a prompt edit.
 .build/debug/MurmurEval clean "um so first update the readme second tag the release" --context notes
 ```
 
@@ -48,4 +69,4 @@ Run the binary directly rather than `swift run`, so macOS attributes the mic pro
 - **Clips** live in `Eval/clips/` as `<name>.wav` plus a `<name>.json` sidecar (`reference`, `intended`, `context`). Any `.wav`/`.m4a` you drop in works too. Audio is gitignored.
 - **Contexts**: `plain`, `chat`, `email`, `notes`, `code`. They set how the cleanup pass formats output.
 - **Vocabulary**: `Eval/vocabulary.txt`, holding names and jargon the cleanup pass should spell correctly.
-- **Cleanup prompt**: `Eval/prompts/cleanup.md`. It's read at runtime, so edits need no rebuild.
+- **Cleanup prompt**: `Core/Sources/MurmurCore/CleanupPrompt.swift`, shared with the app. Try a draft first with `--prompt draft.md`.
