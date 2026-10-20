@@ -9,7 +9,7 @@ USAGE
   swift run MurmurEval record <name> [--context plain|chat|email|notes|code]
       Record a clip from the mic into clips/<name>.wav, then type what you said.
 
-  swift run MurmurEval run [--engines parakeet,apple] [--no-cleanup] [--thinking] [--cleaner claude|apple|ollama:<model>] [--prompt draft.md]
+  swift run MurmurEval run [--engines parakeet,apple] [--no-cleanup] [--thinking] [--cleaner claude|ollama:<model>] [--prompt draft.md]
       Transcribe every clip in clips/ with each engine, clean each transcript with Claude,
       and write a report to results/.
 
@@ -17,7 +17,7 @@ USAGE
       Run only the cleanup pass on a string. Add --prompt draft.md to try a prompt edit before
       moving it into Core/Sources/MurmurKit/CleanupPrompt.swift.
 
-  swift run MurmurEval bench [--cleaner claude|apple|ollama:<model>] [--runs 3]
+  swift run MurmurEval bench [--cleaner claude|ollama:<model>] [--runs 3]
       Time a cleaner on built-in test dictations and show its output.
 
   swift run MurmurEval vad <audio files…>
@@ -27,7 +27,7 @@ USAGE
       List audio input devices (* = system default).
 
 Engines: \(Engines.all.keys.sorted().joined(separator: ", ")) (default: \(Engines.defaults.joined(separator: ",")))
-All commands use your Murmur dictionary (or --dictionary <file> / none). Cleanup defaults to claude-haiku-5-5; --cleaner apple uses the on-device Apple Intelligence model. The key comes from ANTHROPIC_API_KEY or the Keychain item com.plyhdrn.murmur.
+All commands use your Murmur dictionary (or --dictionary <file> / none). Cleanup defaults to claude-haiku-5-5. The key comes from ANTHROPIC_API_KEY or the Keychain item com.plyhdrn.murmur.
 """
 
 /// Minimal flag parsing: `--key value`, `--flag`, and positionals.
@@ -66,7 +66,7 @@ func loadDictionary(_ args: Args) throws -> PersonalDictionary {
     return try PersonalDictionary.load(from: url)
 }
 
-/// Builds the cleanup pass from flags: `--cleaner claude|apple|ollama:<model>` (default claude),
+/// Builds the cleanup pass from flags: `--cleaner claude|ollama:<model>` (default claude),
 /// `--thinking` / `--effort` for Claude, and `--prompt <file>` to try a draft system prompt
 /// without rebuilding. Returns nil when Claude is chosen but no API key is available.
 func makeCleaner(_ args: Args) throws -> (any TextCleaner)? {
@@ -75,13 +75,10 @@ func makeCleaner(_ args: Args) throws -> (any TextCleaner)? {
     let vocabulary = try loadDictionary(args).vocabulary
     let choice = args.options["cleaner"] ?? "claude"
 
-    if choice == "apple" {
-        return AppleCleaner(systemPrompt: system, vocabulary: vocabulary)
-    }
     if choice.hasPrefix("ollama:") {
         return OllamaCleaner(model: String(choice.dropFirst("ollama:".count)), systemPrompt: system, vocabulary: vocabulary)
     }
-    guard choice == "claude" else { throw EvalError("Unknown cleaner '\(choice)'. Use claude, apple, or ollama:<model>.") }
+    guard choice == "claude" else { throw EvalError("Unknown cleaner '\(choice)'. Use claude or ollama:<model>.") }
 
     guard let key = APIKey.load() else { return nil }
     var options = ClaudeCleaner.Options()

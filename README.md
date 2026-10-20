@@ -65,7 +65,7 @@ swift build
 .build/debug/MurmurEval run
 .build/debug/MurmurEval run --engines parakeet,parakeet-ultra,apple
 
-# Time a cleaner on built-in test dictations: claude (default), apple, or ollama:<model>.
+# Time a cleaner on built-in test dictations: claude (default) or ollama:<model>.
 .build/debug/MurmurEval bench --cleaner ollama:qwen3.5:9b
 
 # Try the cleanup pass without audio. Add --prompt draft.md to test a prompt edit.

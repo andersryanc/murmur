@@ -3,8 +3,8 @@ import PackageDescription
 
 // MurmurKit is plain Foundation and builds on macOS and Linux: the cleanup prompt, the cleaners
 // (Claude, Ollama), the personal dictionary, target context and voice activity.
-// MurmurCore adds the macOS-only parts (audio capture, speech engines, Apple Intelligence) and is
-// only declared on macOS, so Linux never fetches FluidAudio.
+// MurmurCore adds the macOS-only parts (audio capture, speech engines) and is only
+// declared on macOS, so Linux never fetches FluidAudio.
 var products: [Product] = [
     .library(name: "MurmurKit", targets: ["MurmurKit"]),
 ]
