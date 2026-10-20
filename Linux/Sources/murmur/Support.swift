@@ -62,39 +62,83 @@ enum Shell {
     }
 
     /// Runs `program` from PATH to completion. `input` is written to its stdin. Output is only
-    /// captured when asked for, and must be small (it's read after the program exits); never
-    /// capture from a program that leaves a child running, like wl-copy.
+    /// captured when asked for; never capture from a program that leaves a child running, like
+    /// wl-copy, since its output never ends.
     ///
-    /// Waits with a termination handler rather than `waitUntilExit()`, which spins the run loop
-    /// and could run other daemon work in the middle of this call.
+    /// Uses posix_spawn rather than Foundation's `Process`, which on Linux learns that a program
+    /// exited when a socket it passes to the program closes. wl-copy forks a child that keeps
+    /// serving the clipboard and inherits that socket, so `Process` never saw wl-copy finish.
+    /// Here the program gets only stdin, stdout and stderr, and is waited for with waitpid.
     @discardableResult
     static func run(_ program: String, _ arguments: [String] = [], input: String? = nil,
                     captureOutput: Bool = false) async -> Result {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = [program] + arguments
-        let stdout = Pipe()
-        let stdin = Pipe()
-        process.standardOutput = captureOutput ? stdout : FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        process.standardInput = input == nil ? FileHandle.nullDevice : stdin
-
-        let status: Int32 = await withCheckedContinuation { continuation in
-            process.terminationHandler = { continuation.resume(returning: $0.terminationStatus) }
-            do {
-                try process.run()
-            } catch {
-                process.terminationHandler = nil
-                continuation.resume(returning: -1)
-                return
-            }
-            if let input {
-                stdin.fileHandleForWriting.write(Data(input.utf8))
-                try? stdin.fileHandleForWriting.close()
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                continuation.resume(returning: runBlocking(program, arguments, input: input, captureOutput: captureOutput))
             }
         }
-        let output = captureOutput ? String(decoding: stdout.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self) : ""
-        return Result(status: status, output: output)
+    }
+
+    private static func runBlocking(_ program: String, _ arguments: [String], input: String?,
+                                    captureOutput: Bool) -> Result {
+        var stdinPipe: [Int32] = [-1, -1]
+        var stdoutPipe: [Int32] = [-1, -1]
+        if input != nil, pipe(&stdinPipe) != 0 { return Result(status: -1, output: "") }
+        if captureOutput, pipe(&stdoutPipe) != 0 { return Result(status: -1, output: "") }
+
+        var actions = posix_spawn_file_actions_t()
+        posix_spawn_file_actions_init(&actions)
+        defer { posix_spawn_file_actions_destroy(&actions) }
+        if input != nil {
+            posix_spawn_file_actions_adddup2(&actions, stdinPipe[0], 0)
+        } else {
+            posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
+        }
+        if captureOutput {
+            posix_spawn_file_actions_adddup2(&actions, stdoutPipe[1], 1)
+        } else {
+            posix_spawn_file_actions_addopen(&actions, 1, "/dev/null", O_WRONLY, 0)
+        }
+        posix_spawn_file_actions_addopen(&actions, 2, "/dev/null", O_WRONLY, 0)
+        posix_spawn_file_actions_addclosefrom_np(&actions, 3)
+
+        let argv = ([program] + arguments).map { strdup($0) } + [nil]
+        defer { argv.forEach { free($0) } }
+        var pid: pid_t = 0
+        let spawned = posix_spawnp(&pid, program, &actions, nil, argv, environ)
+        for fd in [stdinPipe[0], stdoutPipe[1]] where fd >= 0 { close(fd) }
+        guard spawned == 0 else {
+            for fd in [stdinPipe[1], stdoutPipe[0]] where fd >= 0 { close(fd) }
+            return Result(status: -1, output: "")
+        }
+
+        if let input {
+            let bytes = Array(input.utf8)
+            var written = 0
+            while written < bytes.count {
+                let count = bytes[written...].withUnsafeBytes { write(stdinPipe[1], $0.baseAddress, $0.count) }
+                if count <= 0 { break }
+                written += count
+            }
+            close(stdinPipe[1])
+        }
+
+        var output = [UInt8]()
+        if captureOutput {
+            var buffer = [UInt8](repeating: 0, count: 4096)
+            while true {
+                let count = read(stdoutPipe[0], &buffer, buffer.count)
+                if count <= 0 { break }
+                output += buffer[0..<count]
+            }
+            close(stdoutPipe[0])
+        }
+
+        var status: Int32 = 0
+        while waitpid(pid, &status, 0) < 0, errno == EINTR {}
+        // WIFEXITED / WEXITSTATUS, which Swift doesn't import.
+        let exitStatus = status & 0x7f == 0 ? (status >> 8) & 0xff : -1
+        return Result(status: exitStatus, output: String(decoding: output, as: UTF8.self))
     }
 
     /// Starts `program` and doesn't wait for it.
