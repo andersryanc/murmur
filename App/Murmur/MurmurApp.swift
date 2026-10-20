@@ -63,6 +63,23 @@ private struct MenuContent: View {
             }
             Button("Refresh Local Models") { Task { await model.refreshLocalModels() } }
         }
+        Picker("Microphone", selection: $model.microphoneUID) {
+            Text(model.defaultInput.map { "System Default (\($0.name))" } ?? "System Default")
+                .tag(String?.none)
+            Divider()
+            ForEach(model.inputDevices) { device in
+                Text(device.name).tag(Optional(device.uid))
+            }
+            // A saved mic that's unplugged right now: keep it selected so it's used again on reconnect.
+            if let uid = model.microphoneUID, !model.inputDevices.contains(where: { $0.uid == uid }) {
+                Text("Disconnected Microphone (using system default)").tag(Optional(uid))
+            }
+        }
+        Picker("Sound Effects", selection: $model.soundTheme) {
+            ForEach(SoundTheme.allCases) { Text($0.label).tag(Optional($0)) }
+            Divider()
+            Text("Off").tag(SoundTheme?.none)
+        }
         Toggle("Launch at Login", isOn: $model.launchAtLogin)
 
         Divider()

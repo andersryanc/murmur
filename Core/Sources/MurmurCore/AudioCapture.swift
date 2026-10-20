@@ -8,7 +8,7 @@ import os
 /// The tap runs on a realtime audio thread, so this type is deliberately not main-actor
 /// isolated and guards its sample buffer with a lock.
 public final class AudioCapture: @unchecked Sendable {
-    private let engine = AVAudioEngine()
+    private var engine = AVAudioEngine()
     private let state = OSAllocatedUnfairLock(initialState: [Float]())
     private var inputSampleRate: Double = 48_000
     private var running = false
@@ -18,11 +18,23 @@ public final class AudioCapture: @unchecked Sendable {
 
     public init() {}
 
-    public func start() throws {
+    /// Starts recording from the device with Core Audio UID `deviceUID`, or from the system
+    /// default input when it's nil or that device isn't connected.
+    public func start(deviceUID: String? = nil) throws {
         guard !running else { return }
         state.withLock { $0.removeAll(keepingCapacity: true) }
 
+        // A fresh engine each time, so a device change (or a new system default) takes effect
+        // and the input format is re-read for that device.
+        engine = AVAudioEngine()
         let input = engine.inputNode
+        if let deviceUID, var deviceID = AudioDevices.deviceID(forUID: deviceUID), let unit = input.audioUnit {
+            let status = AudioUnitSetProperty(
+                unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
+                &deviceID, UInt32(MemoryLayout<AudioDeviceID>.size)
+            )
+            if status != noErr { throw MurmurError("Couldn't switch to the selected microphone (\(status))") }
+        }
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw MurmurError("No microphone input is available")

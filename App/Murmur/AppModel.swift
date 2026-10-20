@@ -73,6 +73,9 @@ final class AppModel {
     private(set) var lastTiming: Timing?
     /// Models pulled into Ollama, for the local model picker.
     private(set) var localModels: [String] = []
+    /// Connected microphones, kept current as devices come and go.
+    private(set) var inputDevices: [AudioInputDevice] = []
+    private(set) var defaultInput: AudioInputDevice?
 
     var hotkey: Hotkey {
         didSet {
@@ -92,6 +95,22 @@ final class AppModel {
         didSet {
             UserDefaults.standard.set(localModel, forKey: "localModel")
             prepareLocalModel()
+        }
+    }
+
+    /// Core Audio UID of the chosen microphone, or nil to follow the system default input.
+    var microphoneUID: String? {
+        didSet { UserDefaults.standard.set(microphoneUID, forKey: "microphoneUID") }
+    }
+
+    /// Start/stop sounds, or nil for silence. Picking a theme plays its start sound as a preview.
+    var soundTheme: SoundTheme? {
+        didSet {
+            UserDefaults.standard.set(soundTheme?.rawValue ?? "off", forKey: "soundTheme")
+            if let soundTheme {
+                sounds.theme = soundTheme
+                sounds.playStart()
+            }
         }
     }
 
@@ -117,6 +136,7 @@ final class AppModel {
     private var recordingStarted: Date?
     private var targetApp: NSRunningApplication?
     private var chordCancelled = false
+    private let sounds = SoundEffects()
 
     init() {
         let defaults = UserDefaults.standard
@@ -125,6 +145,14 @@ final class AppModel {
         let legacyOff = defaults.object(forKey: "cleanupEnabled") as? Bool == false
         cleanup = defaults.string(forKey: "cleanup").flatMap(CleanupMode.init) ?? (legacyOff ? .off : .claude)
         localModel = defaults.string(forKey: "localModel") ?? "qwen3.5:9b"
+        microphoneUID = defaults.string(forKey: "microphoneUID")
+        // `soundEffects` was the original on/off toggle; carry an "off" choice forward.
+        if let saved = defaults.string(forKey: "soundTheme") {
+            soundTheme = SoundTheme(rawValue: saved)
+        } else {
+            soundTheme = defaults.object(forKey: "soundEffects") as? Bool == false ? nil : .wood
+        }
+        sounds.theme = soundTheme ?? .wood
 
         hotkeys.hotkey = hotkey
         hotkeys.onPress = { [weak self] in self?.startRecording() }
@@ -133,6 +161,11 @@ final class AppModel {
 
         capture.onLevel = { [weak self] level in
             Task { @MainActor in self?.push(level: level) }
+        }
+
+        refreshInputDevices()
+        AudioDevices.observeChanges { [weak self] in
+            Task { @MainActor in self?.refreshInputDevices() }
         }
 
         hud = HUDController(model: self)
@@ -212,6 +245,11 @@ final class AppModel {
         }
     }
 
+    private func refreshInputDevices() {
+        inputDevices = AudioDevices.inputs()
+        defaultInput = AudioDevices.defaultInput()
+    }
+
     // MARK: - Push to talk
 
     private func startRecording() {
@@ -221,7 +259,7 @@ final class AppModel {
             return
         }
         do {
-            try capture.start()
+            try capture.start(deviceUID: microphoneUID)
         } catch {
             flash("Couldn't start the microphone: \(error)")
             return
@@ -233,11 +271,18 @@ final class AppModel {
         levels = Array(repeating: 0, count: Self.levelCount)
         phase = .recording
         hud?.show()
+        if soundTheme != nil { sounds.playStart() }
+    }
+
+    /// Recording just ended, whether it will be transcribed or thrown away.
+    private func endChime() {
+        if soundTheme != nil { sounds.playStop() }
     }
 
     private func cancelForChord() {
         guard phase == .recording else { return }
         chordCancelled = true
+        endChime()
         _ = try? capture.stop()
         phase = .ready
         hud?.hide()
@@ -246,6 +291,7 @@ final class AppModel {
     private func finishRecording() {
         guard phase == .recording, !chordCancelled else { return }
         let held = Date().timeIntervalSince(recordingStarted ?? Date())
+        endChime()
         let samples = (try? capture.stop()) ?? []
 
         guard held >= Self.minimumHold, !samples.isEmpty else {

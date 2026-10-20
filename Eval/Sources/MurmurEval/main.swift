@@ -19,6 +19,9 @@ USAGE
   swift run MurmurEval bench [--cleaner claude|apple|ollama:<model>] [--runs 3]
       Time a cleaner on built-in test dictations and show its output.
 
+  swift run MurmurEval devices
+      List audio input devices (* = system default).
+
 Engines: \(Engines.all.keys.sorted().joined(separator: ", ")) (default: \(Engines.defaults.joined(separator: ",")))
 Cleanup defaults to claude-haiku-5-5; --cleaner apple uses the on-device Apple Intelligence model. The key comes from ANTHROPIC_API_KEY or the Keychain item com.plyhdrn.murmur.
 """
@@ -226,6 +229,11 @@ do {
     case "run": try await run(args)
     case "clean": try await clean(args)
     case "bench": try await bench(args)
+    case "devices":
+        let defaultUID = AudioDevices.defaultInput()?.uid
+        for device in AudioDevices.inputs() {
+            print("\(device.uid == defaultUID ? "*" : " ") \(device.name)  [\(device.uid)]")
+        }
     default: print(usage)
     }
 } catch {
