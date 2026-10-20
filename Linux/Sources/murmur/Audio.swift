@@ -6,6 +6,11 @@ import MurmurKit
 final class Recorder {
     private var process: Process?
     private var file: URL?
+    private var meter: Task<Void, Never>?
+
+    /// Called about every 50 ms while recording with a 0...1 loudness value, for the pill's
+    /// level meter.
+    var onLevel: (@MainActor (Float) -> Void)?
 
     func start(microphone: String?) throws {
         guard Shell.has("pw-record") else { throw MurmurError("pw-record isn't installed") }
@@ -23,10 +28,22 @@ final class Recorder {
         try process.run()
         self.process = process
         self.file = file
+
+        if let onLevel {
+            meter = Task {
+                let reader = LevelReader(file: file)
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .milliseconds(50))
+                    if let level = reader.next() { onLevel(level) }
+                }
+            }
+        }
     }
 
     /// Stops recording and returns the samples. Empty if nothing was recorded.
     func stop() async -> [Float] {
+        meter?.cancel()
+        meter = nil
         guard let process, let file else { return [] }
         self.process = nil
         self.file = nil
@@ -40,6 +57,49 @@ final class Recorder {
             return []
         }
         return (try? WAV.decode(data).samples) ?? []
+    }
+}
+
+/// Follows the WAV file pw-record is writing and measures the audio added since the last call.
+final class LevelReader {
+    private let file: URL
+    private var handle: FileHandle?
+    private var pending: [UInt8] = []
+    private var inData = false
+
+    init(file: URL) {
+        self.file = file
+    }
+
+    deinit { try? handle?.close() }
+
+    /// Loudness of the new audio, or nil if none has arrived yet.
+    func next() -> Float? {
+        if handle == nil { handle = try? FileHandle(forReadingFrom: file) }
+        guard let handle, let data = try? handle.readToEnd(), !data.isEmpty else { return nil }
+        pending += data
+
+        // Skip the header: the samples start after the "data" chunk's tag and size.
+        if !inData {
+            guard pending.count >= 20,
+                  let tag = (12...(pending.count - 8)).first(where: { pending[$0..<$0 + 4] == [0x64, 0x61, 0x74, 0x61] })
+            else { return nil }
+            pending.removeFirst(tag + 8)
+            inData = true
+        }
+
+        let usable = pending.count / 4 * 4
+        guard usable > 0 else { return nil }
+        let samples = pending[0..<usable].withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+        pending.removeFirst(usable)
+        return Self.level(samples)
+    }
+
+    /// Maps roughly -50 dB...0 dB to 0...1, the same scale as the Mac's level meter.
+    static func level(_ samples: [Float]) -> Float {
+        let rms = sqrt(samples.reduce(0) { $0 + $1 * $1 } / Float(max(samples.count, 1)))
+        let db = 20 * log10(max(rms, 1e-6))
+        return min(max((db + 50) / 50, 0), 1)
     }
 }
 

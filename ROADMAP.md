@@ -22,8 +22,7 @@ Ideas for what's next, roughly in priority order. Nothing here is committed to; 
 
 ## Linux
 
-- [ ] **Test on the Omarchy machine.** Built and checked in Docker only; work through the testing checklist in [`Linux/README.md`](Linux/README.md) (mic, paste, key bindings, keyring, x86_64 build, latency).
-- [ ] **A "listening" indicator.** A Waybar module that polls `murmur status`, or a layer-shell overlay like the Mac HUD.
+- [ ] **Test on the Omarchy machine.** Builds and transcribes on x86_64; work through the testing checklist in [`Linux/README.md`](Linux/README.md) (mic, paste, key bindings, keyring, latency).
 - [ ] **Packaging.** An AUR `PKGBUILD`, so installing doesn't need the repo.
 
 ## Known issues

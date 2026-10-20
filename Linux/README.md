@@ -10,10 +10,11 @@ Hyprland key bind ─▶ murmur start/stop ─▶ daemon ─▶ pw-record ─▶
 - **`murmur daemon`** runs in the background. It loads Parakeet v3 once and listens on a Unix socket (`$XDG_RUNTIME_DIR/murmur/murmur.sock`).
 - **`murmur start`** and **`murmur stop`** are bound to a key's press and release in Hyprland. Wayland doesn't let apps watch keys globally, so the compositor does it.
 - Cleanup, the Dictionary, the start/stop sounds and the per-app style all come from the shared [`MurmurKit`](../Core/Sources/MurmurKit). Your Mac Dictionary file works here unchanged.
+- **The on-screen pill** (like the Mac HUD) is an [Omarchy shell](https://omarchy.org) plugin in [`omarchy-plugin/`](omarchy-plugin). It shows the mic level while you speak, "Murmuring…" while it works, and any problem for a moment afterwards.
 
 ## Status
 
-> **For the agent picking this up on the Linux machine:** this was built on a Mac and checked in a `swift:6.2` arm64 Docker container. The container can't run a desktop, a microphone or Hyprland, so everything in the second list below still needs testing on the real machine. Work through [Setup](#setup), then [Testing checklist](#testing-checklist), and fix what breaks.
+> **For the agent picking this up on the Linux machine:** this was built on a Mac, checked in a `swift:6.2` arm64 Docker container, then set up and used on an Omarchy machine. What's left is in the last list below; work through [Setup](#setup), then [Testing checklist](#testing-checklist), and fix what breaks.
 
 Checked in Docker (Swift 6.2.4, Ubuntu, arm64):
 
@@ -22,13 +23,19 @@ Checked in Docker (Swift 6.2.4, Ubuntu, arm64):
 - The daemon's socket commands (start, stop, toggle, cancel, status), the "already running" check, `murmur doctor` and shutdown on SIGTERM.
 - MurmurKit's tests pass on Linux.
 
+Checked on the Omarchy machine (x86_64, Swift 6.4.1, Hyprland 0.56 with a Lua config):
+
+- `install.sh` builds and installs; `murmur transcribe` on the test clip is correct (model load 1.6 s, speech 0.24 s).
+- The on-screen pill: recording with live levels, processing and notices, in the Omarchy theme, and it reconnects when the daemon restarts.
+- Push-to-talk on Right Alt with the Lua bindings below: recording, the sounds, cleanup with Ollama and pasting into a terminal.
+- Latency on an i9 MacBook Pro (2019, 8-core i9-9980HK, CPU only): speech 0.3–0.9 s. Ollama cleanup with `qwen3.5:4b` takes ~0.5 s when the previous dictation used the same style, but ~10 s when the style changes (each style's prompt is processed again), and ~25 s when the model has to load; `qwen3.5:9b` is about twice as slow.
+
 Not tested yet:
 
-- The x86_64 build (the Docker check was arm64; `setup.sh` picks the x64 sherpa-onnx build automatically).
-- Recording with `pw-record`, the sounds with `pw-play`, pasting with `wl-copy` + `wtype`, `hyprctl activewindow`, `notify-send`.
-- The Hyprland press/release bindings, and how they behave with modifier keys.
-- Reading the API key with `secret-tool`.
-- Real-world latency on this CPU, and whether `pw-record`'s start-up clips the first word.
+- Pasting into a browser and a chat app, `notify-send`, reading the API key with `secret-tool`.
+- Whether `pw-record`'s start-up clips the first word.
+
+**T2 MacBooks:** the built-in mic records about 30 dB too quietly and with a DC offset, so the level meter stays flat and every recording looks like speech (a tap gets transcribed). There's no hardware gain to raise; fix it system-wide with a PipeWire filter that removes the offset and boosts the mic.
 
 ## Setup
 
@@ -58,7 +65,7 @@ sudo pacman -S --needed pipewire wl-clipboard wtype libnotify libsecret curl bzi
 | `wl-copy` | wl-clipboard | putting the text on the clipboard |
 | `wtype` | wtype | sending Ctrl+V (Ctrl+Shift+V in terminals) |
 | `hyprctl` | hyprland | finding the focused window, to pick the cleanup style |
-| `notify-send` | libnotify | showing errors (Omarchy shows them with mako) |
+| `notify-send` | libnotify | showing errors when the on-screen pill isn't running |
 | `secret-tool` | libsecret | reading the API key from the keyring |
 
 Omarchy already ships most of these.
@@ -71,7 +78,7 @@ From the repository root:
 Linux/scripts/install.sh
 ```
 
-This runs `scripts/setup.sh` first, which downloads sherpa-onnx's libraries into `Linux/vendor/` (not in git) and the Parakeet model (~480 MB) into `~/.local/share/murmur/models/`. Then it builds a release binary and installs `~/.local/bin/murmur`, with sherpa-onnx's libraries in `~/.local/lib/murmur/`. Run it again after pulling changes; it restarts the daemon if one is running.
+This runs `scripts/setup.sh` first, which downloads sherpa-onnx's libraries into `Linux/vendor/` (not in git) and the Parakeet model (~480 MB) into `~/.local/share/murmur/models/`. Then it builds a release binary and installs `~/.local/bin/murmur`, with sherpa-onnx's libraries in `~/.local/lib/murmur/`. On Omarchy it also installs the on-screen pill plugin to `~/.config/omarchy/plugins/plyhdrn.murmur/` and enables it the first time (`omarchy plugin disable plyhdrn.murmur` turns it off). Run it again after pulling changes; it restarts the daemon if one is running.
 
 ### 4. API key
 
@@ -85,26 +92,32 @@ This needs a Secret Service provider such as gnome-keyring, which Omarchy uses. 
 
 ### 5. Hyprland
 
-Start the daemon with your session. In `~/.config/hypr/autostart.conf` (Omarchy) or `hyprland.conf`:
+Start the daemon with your session, and bind push-to-talk. A key with no modifiers is the safest choice: by the time text is pasted you've let go of it, so the paste can't turn into some other shortcut. Right Alt, for example. When a modifier key is pressed on its own, Hyprland sees that modifier as held when it's released, hence `ALT` on the release binding.
 
-```ini
-exec-once = ~/.local/bin/murmur daemon
+Current Omarchy configures Hyprland in Lua. In `~/.config/hypr/autostart.lua`:
+
+```lua
+o.launch_on_start(os.getenv("HOME") .. "/.local/bin/murmur daemon")
 ```
 
-Bind push-to-talk in `~/.config/hypr/bindings.conf`. A key with no modifiers is the safest choice: by the time text is pasted you've let go of it, so the paste can't turn into some other shortcut. Right Alt, for example:
+and in `~/.config/hypr/bindings.lua`:
+
+```lua
+local murmur = os.getenv("HOME") .. "/.local/bin/murmur"
+o.bind("Alt_R", "Start dictation (Murmur)", murmur .. " start")
+o.bind("ALT + Alt_R", "Stop dictation (Murmur)", murmur .. " stop", { release = true })
+```
+
+With an older `.conf` config, use `exec-once = ~/.local/bin/murmur daemon` in `autostart.conf`, and in `bindings.conf`:
 
 ```ini
 bind = , Alt_R, exec, ~/.local/bin/murmur start
 bindr = ALT, Alt_R, exec, ~/.local/bin/murmur stop
 ```
 
-When a modifier key is pressed on its own, Hyprland sees that modifier as held when it's released, hence `ALT` on the release line. If the release doesn't fire, try `bindr = , Alt_R, …`, or use toggle mode, where one press starts and the next press finishes:
+If the release doesn't fire, drop the `ALT` from the release binding, or use toggle mode, where one press starts and the next press finishes (`murmur toggle` on one key).
 
-```ini
-bind = SUPER CTRL, D, exec, ~/.local/bin/murmur toggle
-```
-
-Check what's free first with `hyprctl binds`. Reload with `hyprctl reload` and start the daemon once by hand (`hyprctl dispatch exec "~/.local/bin/murmur daemon"`) instead of logging out.
+Check what's free first with `hyprctl binds`. Reload with `hyprctl reload`, then check `hyprctl configerrors`. Start the daemon once by hand instead of logging out: `hyprctl dispatch 'hl.dsp.exec_cmd("~/.local/bin/murmur daemon")'` (Lua) or `hyprctl dispatch exec "~/.local/bin/murmur daemon"` (`.conf`).
 
 ### 6. Check
 
@@ -177,6 +190,15 @@ The pieces, all in [`Sources/murmur`](Sources/murmur):
 | `Config.swift` | `config.json` and choosing the cleaner. |
 | `Support.swift` | XDG paths, the log, running command-line tools. |
 
+The on-screen pill is [`omarchy-plugin/Murmur.qml`](omarchy-plugin/Murmur.qml), a `panel` plugin for the Omarchy shell (Quickshell). It connects to the daemon's socket and sends `watch`; the daemon keeps that connection open and writes one line per event: `state ready|recording|processing|cancelling`, `level 0.42` (about every 50 ms while recording, measured from the WAV file `pw-record` is writing), and `notice <message>`. While anything is watching, notices go to the pill instead of `notify-send`. To work on the plugin, link it instead of copying it, and the shell reloads it on save (`install.sh` leaves a link alone):
+
+```bash
+rm -rf ~/.config/omarchy/plugins/plyhdrn.murmur
+ln -s "$PWD/omarchy-plugin" ~/.config/omarchy/plugins/plyhdrn.murmur
+```
+
+`quickshell log -p /usr/share/omarchy/shell` shows QML errors.
+
 `Package.swift` finds sherpa-onnx in `vendor/sherpa-onnx` (or `$SHERPA_ONNX_DIR`). The binary looks for the libraries next to the installed binary first (`~/.local/lib/murmur`), then in `vendor/`. Shared logic belongs in `Core/Sources/MurmurKit`, which must stay plain Foundation so it builds on both systems (`cd Core && swift test` runs its tests on either).
 
 **Checking the Linux build from a Mac,** with Docker:
@@ -189,7 +211,6 @@ docker run --rm -v "$PWD":/src:ro swift:6.2 bash -c 'apt-get update -qq && apt-g
 
 ## Ideas
 
-- **Overlay:** a small "listening" indicator, e.g. a Waybar module that polls `murmur status`, or a GTK layer-shell window like the Mac HUD.
 - **Faster start:** if `pw-record` clips the first word, keep one recording stream open and only keep the audio between start and stop.
 - **Streaming:** transcribe while you're still talking, as on the Mac roadmap.
 - **Packaging:** an AUR `PKGBUILD`, and a systemd user service as an alternative to `exec-once`.

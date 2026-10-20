@@ -22,9 +22,13 @@ enum ControlSocket {
         return String(decoding: reply, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Starts listening and calls `handler` on the main actor for each command. Keep the returned
-    /// source alive for as long as the daemon runs.
-    static func listen(_ handler: @escaping @MainActor (String) -> String) throws -> any DispatchSourceRead {
+    /// Starts listening and calls `handler` on the main actor for each command. A client that
+    /// sends "watch" stays connected and is handed to `watch` instead. Keep the returned source
+    /// alive for as long as the daemon runs.
+    static func listen(
+        _ handler: @escaping @MainActor (String) -> String,
+        watch: @escaping @MainActor (Int32) -> Void
+    ) throws -> any DispatchSourceRead {
         let path = Paths.socket.path
         Paths.ensure(Paths.runtime)
         if (try? connected()).map({ close($0) }) != nil {
@@ -44,11 +48,15 @@ enum ControlSocket {
         source.setEventHandler {
             let client = accept(fd, nil, nil)
             guard client >= 0 else { return }
-            defer { close(client) }
             var buffer = [UInt8](repeating: 0, count: 256)
             let count = read(client, &buffer, buffer.count)
-            guard count > 0 else { return }
+            guard count > 0 else { close(client); return }
             let command = String(decoding: buffer[0..<count], as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            if command == "watch" {
+                MainActor.assumeIsolated { watch(client) }
+                return
+            }
+            defer { close(client) }
             let reply = MainActor.assumeIsolated { handler(command) } + "\n"
             _ = reply.utf8CString.withUnsafeBufferPointer { write(client, $0.baseAddress, $0.count - 1) }
         }
@@ -77,6 +85,34 @@ enum ControlSocket {
             buffer.copyBytes(from: bytes)
         }
         return address
+    }
+}
+
+/// Clients that sent "watch", such as the Omarchy shell plugin that draws the on-screen pill.
+/// Each gets one line per event: `state recording`, `level 0.42`, `notice …`.
+@MainActor
+final class Watchers {
+    private var clients: [Int32] = []
+
+    var isEmpty: Bool { clients.isEmpty }
+
+    /// Starts sending events to `fd`, beginning with `greeting` (the current state).
+    func add(_ fd: Int32, greeting: String) {
+        clients.append(fd)
+        send(greeting, to: [fd])
+    }
+
+    func send(_ line: String) {
+        send(line, to: clients)
+    }
+
+    /// Drops any client that has gone away or stopped reading, rather than waiting on it.
+    private func send(_ line: String, to targets: [Int32]) {
+        let bytes = Array((line + "\n").utf8)
+        for fd in targets where Glibc.send(fd, bytes, bytes.count, Int32(MSG_NOSIGNAL | MSG_DONTWAIT)) != bytes.count {
+            close(fd)
+            clients.removeAll { $0 == fd }
+        }
     }
 }
 

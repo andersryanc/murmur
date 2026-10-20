@@ -7,22 +7,41 @@ import MurmurKit
 @MainActor
 final class Daemon {
     enum Phase: String {
-        case ready, recording, processing
+        case ready, recording, processing, cancelling
     }
 
     /// Holds shorter than this are treated as accidental taps.
     private static let minimumHold = Duration.milliseconds(300)
 
-    private var phase = Phase.ready
+    private var phase = Phase.ready {
+        didSet { watchers.send("state \(phase.rawValue)") }
+    }
     private var config = Config.load()
     private let transcriber: Transcriber
     private let recorder = Recorder()
+    private let watchers = Watchers()
     private var recordingStarted = ContinuousClock.now
     /// Looked up when recording starts, so the paste goes where you were when you began.
     private var windowClass: Task<String?, Never>?
 
     init(transcriber: Transcriber) {
         self.transcriber = transcriber
+        recorder.onLevel = { [weak self] level in
+            guard let self, phase == .recording else { return }
+            watchers.send("level \((level * 100).rounded() / 100)")
+        }
+    }
+
+    /// Sends events to a client that asked to watch, starting with the current state.
+    func watch(_ fd: Int32) {
+        watchers.add(fd, greeting: "state \(phase.rawValue)")
+    }
+
+    /// Shows `message` in the pill when the Omarchy plugin is watching, or as a notification.
+    private func notice(_ message: String) {
+        // Sending first drops watchers that have gone away (e.g. the shell restarted).
+        watchers.send("notice \(message)")
+        if watchers.isEmpty { Desktop.notify(message) }
     }
 
     func handle(_ command: String) -> String {
@@ -43,7 +62,7 @@ final class Daemon {
             try recorder.start(microphone: config.microphone)
         } catch {
             Log.info("Couldn't start pw-record: \(error)")
-            Desktop.notify("Couldn't start the microphone")
+            notice("Couldn't start the microphone")
             return "error: couldn't start pw-record"
         }
         phase = .recording
@@ -67,7 +86,7 @@ final class Daemon {
 
     private func cancel() -> String {
         guard phase == .recording else { return "not recording" }
-        phase = .processing
+        phase = .cancelling
         Sounds.play(.stop, theme: config.soundTheme)
         Task {
             _ = await recorder.stop()
@@ -116,12 +135,12 @@ final class Daemon {
             }
         } catch {
             Log.info("Cleanup failed, pasting raw text: \(error)")
-            Desktop.notify("Cleanup failed, pasted raw text")
+            notice("Cleanup failed, pasted raw text")
         }
         guard !text.isEmpty else { return }
 
         let pasted = await Desktop.paste(text, windowClass: target)
-        if !pasted { Desktop.notify("Copied. Paste with Ctrl+V") }
+        if !pasted { notice("Copied. Paste with Ctrl+V") }
         Log.info("Dictated into \(target ?? "nothing") [\(context.rawValue)], \(timing): \(text)")
     }
 

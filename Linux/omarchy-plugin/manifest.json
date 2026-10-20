@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "plyhdrn.murmur",
+  "name": "Murmur",
+  "version": "1.0.0",
+  "author": "Ryan Anderson",
+  "description": "Shows Murmur listening and working: a pill at the bottom of the screen with the mic level while you dictate.",
+  "kinds": ["panel"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "panel": "Murmur.qml"
+  }
+}

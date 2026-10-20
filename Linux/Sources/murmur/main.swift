@@ -47,7 +47,7 @@ func runDaemon() async -> Never {
     let daemon = Daemon(transcriber: transcriber)
     let socket: any DispatchSourceRead
     do {
-        socket = try ControlSocket.listen { daemon.handle($0) }
+        socket = try ControlSocket.listen({ daemon.handle($0) }, watch: { daemon.watch($0) })
     } catch {
         fail("\(error)")
     }
