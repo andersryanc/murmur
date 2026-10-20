@@ -24,11 +24,11 @@ Most of the quality comes from the cleanup pass. It fixes misheard words, drops 
 
 ```bash
 brew install xcodegen   # once
-echo 'DEVELOPMENT_TEAM = <your Team ID>' > App/Signing.local.xcconfig   # once; see App/Signing.xcconfig
+echo 'DEVELOPMENT_TEAM = <your Team ID>' > App/Signing.local.xcconfig   # once; see App/Signing.xcconfig, or below for no Apple account
 ./scripts/install.sh    # build Release, install to /Applications, launch
 ```
 
-On first launch, allow **Microphone** and turn on Murmur under **System Settings › Privacy & Security › Accessibility**. Accessibility lets Murmur see the push-to-talk key and paste at your cursor. Both permissions persist across rebuilds because the app is signed with your Apple Development certificate.
+On first launch, allow **Microphone** and turn on Murmur under **System Settings › Privacy & Security › Accessibility**. Accessibility lets Murmur see the push-to-talk key and paste at your cursor. Both permissions persist across rebuilds because the app is always signed with the same certificate.
 
 Hold **fn** (changeable in the menu), speak, and release. The text is pasted wherever your cursor is.
 
@@ -42,9 +42,20 @@ Hold **fn** (changeable in the menu), speak, and release. The text is pasted whe
 - **Sound Effects** (menu): a start and stop sound in one of three styles, all synthesized in code: **Wood** (low, woody; default), **Soft** (pure round tones with a faint grace note), **Chime** (bright, bell-like) or **Bubble** (a single note that swoops up or down). Picking one plays a preview.
 - **Clipboard:** the dictated text stays on the clipboard after pasting, so you can paste it again (or yourself, if no text field had focus).
 
+### Building without an Apple account
+
+You need Xcode 26 (free from the App Store) but no developer account: sign with a self-signed certificate instead. It's only trusted on the Mac that built it, which is all a local build needs, and macOS keeps the permissions across rebuilds as long as you keep the certificate.
+
+1. In **Keychain Access**, choose **Keychain Access › Certificate Assistant › Create a Certificate…**. Name it `Murmur Self-Signed`, set **Identity Type** to **Self-Signed Root** and **Certificate Type** to **Code Signing**, and click **Create**.
+2. Point the build at it:
+   ```bash
+   printf 'MURMUR_SIGN_IDENTITY = Murmur Self-Signed\nDEVELOPMENT_TEAM =\n' > App/Signing.local.xcconfig
+   ```
+3. Run `./scripts/install.sh` as above. The first build may ask to use the certificate's key; choose **Always Allow**.
+
 ### Other Macs
 
-To use Murmur on a Mac that doesn't build it (no Xcode or developer account), publish a build from this one and install it there with a script.
+To use Murmur on a Mac that doesn't build it, publish a build from this one and install it there with a script. Releases are public, so `release.sh` only publishes builds signed with a **Developer ID Application** certificate (from the paid Apple Developer Program). It refuses Apple Development and self-signed builds, which are for your own Macs. Set `DEVELOPMENT_TEAM` to the team that owns the certificate; the script shows who signed the build and asks before publishing.
 
 ```bash
 ./scripts/release.sh    # here: build the current commit and publish it as a GitHub Release
@@ -56,7 +67,7 @@ On the other Mac (Apple Silicon, macOS 26), run this to install, and again to up
 curl -fsSL https://raw.githubusercontent.com/andersryanc/murmur/main/scripts/get.sh | zsh
 ```
 
-The release keeps your Apple Development signature but isn't notarized. That's fine because `curl` doesn't quarantine what it downloads, so Gatekeeper doesn't check it; a copy downloaded in a browser would be blocked (System Settings › Privacy & Security › **Open Anyway** lets it through). Grant Microphone and Accessibility on first launch as above; updates keep them as long as they're signed with the same certificate. A renewed certificate makes macOS ask again. Store the API key on that Mac too (see [Eval harness](#eval-harness) for the command; `get.sh` reminds you). A managed work Mac may still refuse to run the app or to turn on Accessibility, depending on its policies.
+Releases aren't notarized yet. That's fine for `get.sh`, because `curl` doesn't quarantine what it downloads, so Gatekeeper doesn't check it; a copy downloaded in a browser would be blocked (System Settings › Privacy & Security › **Open Anyway** lets it through). Grant Microphone and Accessibility on first launch as above; updates keep them as long as they're signed with the same certificate. A renewed certificate makes macOS ask again. Store the API key on that Mac too (see [Eval harness](#eval-harness) for the command; `get.sh` reminds you). A managed work Mac may still refuse to run the app or to turn on Accessibility, depending on its policies.
 
 ## Eval harness
 
