@@ -176,8 +176,8 @@ final class AppModel {
         }
     }
 
-    /// Accessibility is granted in System Settings while the app is running, and the key
-    /// monitors only start receiving events once it is, so poll and reinstall when it flips.
+    /// Accessibility is granted in System Settings while the app is running, and the hotkey's
+    /// event tap can only be created once it is, so poll and reinstall when it flips.
     private func watchAccessibility() {
         Task {
             while true {
