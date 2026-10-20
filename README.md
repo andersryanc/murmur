@@ -42,6 +42,22 @@ Hold **fn** (changeable in the menu), speak, and release. The text is pasted whe
 - **Sound Effects** (menu): a start and stop sound in one of three styles, all synthesized in code: **Wood** (low, woody; default), **Soft** (pure round tones with a faint grace note), **Chime** (bright, bell-like) or **Bubble** (a single note that swoops up or down). Picking one plays a preview.
 - **Clipboard:** the dictated text stays on the clipboard after pasting, so you can paste it again (or yourself, if no text field had focus).
 
+### Other Macs
+
+To use Murmur on a Mac that doesn't build it (no Xcode or developer account), publish a build from this one and install it there with a script.
+
+```bash
+./scripts/release.sh    # here: build the current commit and publish it as a GitHub Release
+```
+
+On the other Mac (Apple Silicon, macOS 26), run this to install, and again to update. It needs no admin rights; without them it installs to `~/Applications`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/andersryanc/murmur/main/scripts/get.sh | zsh
+```
+
+The release keeps your Apple Development signature but isn't notarized. That's fine because `curl` doesn't quarantine what it downloads, so Gatekeeper doesn't check it; a copy downloaded in a browser would be blocked (System Settings › Privacy & Security › **Open Anyway** lets it through). Grant Microphone and Accessibility on first launch as above; updates keep them as long as they're signed with the same certificate. A renewed certificate makes macOS ask again. Store the API key on that Mac too (see [Eval harness](#eval-harness) for the command; `get.sh` reminds you). A managed work Mac may still refuse to run the app or to turn on Accessibility, depending on its policies.
+
 ## Eval harness
 
 Requires macOS 26 and Xcode 26. The first run downloads the Parakeet models (~500 MB) and Apple's speech assets.
