@@ -36,7 +36,7 @@ Hold **fn** (changeable in the menu), speak, and release. The text is pasted whe
 - **Cleanup** (menu): **Claude Haiku** (cloud, most reliable, ~750 ms), **Local Model** via Ollama (default `qwen3.5:9b`, ~250 ms, occasional formatting slips; `ollama pull qwen3.5:9b` first), or **Off** (paste Parakeet's transcript as-is). The menu shows how long the last dictation's speech and cleanup steps took.
 - **Fallbacks:** if cleanup fails (no API key, Ollama not running), Murmur pastes the raw transcript and says so. Without Accessibility, it copies the text so you can ⌘V.
 - **Microphone** (menu): System Default or any connected mic. Murmur remembers your choice without changing the system-wide default, and uses the default while that mic is unplugged.
-- **Sound Effects** (menu): a start and stop sound in one of three styles, all synthesized in code: **Wood** (low, soft; default), **Chime** (bright, bell-like) or **Bubble** (a single note that swoops up or down). Picking one plays a preview.
+- **Sound Effects** (menu): a start and stop sound in one of three styles, all synthesized in code: **Wood** (low, woody; default), **Soft** (pure round tones with a faint grace note), **Chime** (bright, bell-like) or **Bubble** (a single note that swoops up or down). Picking one plays a preview.
 - **Clipboard:** the dictated text stays on the clipboard after pasting, so you can paste it again (or yourself, if no text field had focus).
 
 ## Eval harness
