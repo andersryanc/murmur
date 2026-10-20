@@ -3,9 +3,6 @@ import FluidAudio
 import Foundation
 import Speech
 
-/// Sample rate every engine takes. Parakeet and Apple's model both run at 16 kHz mono.
-public let sttSampleRate: Double = 16_000
-
 /// One speech-to-text backend: 16 kHz mono Float samples in, text out.
 public protocol STTEngine: Sendable {
     var id: String { get }

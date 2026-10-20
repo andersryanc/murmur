@@ -1,5 +1,8 @@
 import Foundation
 
+/// Sample rate every engine takes. Parakeet and Apple's model both run at 16 kHz mono.
+public let sttSampleRate: Double = 16_000
+
 /// A cheap check for whether a recording contains any speech at all.
 ///
 /// Speech models guess words from silence or room noise (Parakeet tends to hear "Yeah."), so a

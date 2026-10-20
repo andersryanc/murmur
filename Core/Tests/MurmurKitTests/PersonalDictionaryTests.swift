@@ -1,5 +1,5 @@
 import Foundation
-import MurmurCore
+import MurmurKit
 import Testing
 
 @Suite struct ReplacementTests {

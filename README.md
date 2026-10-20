@@ -16,7 +16,7 @@ Most of the quality comes from the cleanup pass. It fixes misheard words, drops 
 | Folder | What |
 |---|---|
 | [`App/`](App) | The menu-bar app. `App/project.yml` generates the Xcode project with XcodeGen. |
-| [`Core/`](Core) | `MurmurCore`: audio capture, speech engines, Claude cleanup and the cleanup prompt. Shared by the app and the eval. |
+| [`Core/`](Core) | `MurmurKit`: the cleanup prompt, Claude and Ollama cleanup, the Dictionary. Plain Foundation, so it also builds on Linux. `MurmurCore` (macOS only) adds audio capture and the speech engines, and re-exports `MurmurKit`. Shared by the app and the eval. |
 | [`Eval/`](Eval) | CLI harness that scores engines and the cleanup prompt against recordings of your voice. |
 
 ## The app
@@ -77,4 +77,4 @@ Run the binary directly rather than `swift run`, so macOS attributes the mic pro
 - **Clips** live in `Eval/clips/` as `<name>.wav` plus a `<name>.json` sidecar (`reference`, `intended`, `context`). Any `.wav`/`.m4a` you drop in works too. Audio is gitignored.
 - **Contexts**: `plain`, `chat`, `email`, `notes`, `code`. They set how the cleanup pass formats output.
 - **Dictionary**: every command uses the app's dictionary (`dictionary.json`) so results match real use. Pass `--dictionary <file>` to try another, or `--dictionary none` for none.
-- **Cleanup prompt**: `Core/Sources/MurmurCore/CleanupPrompt.swift`, shared with the app. Try a draft first with `--prompt draft.md`.
+- **Cleanup prompt**: `Core/Sources/MurmurKit/CleanupPrompt.swift`, shared with the app. Try a draft first with `--prompt draft.md`.

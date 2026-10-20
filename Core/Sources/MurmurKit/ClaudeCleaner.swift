@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Cleanup via Claude on the Anthropic API. Swift has no official Anthropic SDK, so this calls
 /// the Messages API over HTTP.
@@ -118,12 +121,19 @@ public enum APIKey {
     /// `ANTHROPIC_API_KEY` wins if set; otherwise read the login Keychain.
     /// Goes through `/usr/bin/security` because the item is created with that tool, so its access
     /// list already trusts it and a rebuilt binary won't trigger a fresh Keychain prompt each time.
+    /// On Linux, reads the Secret Service (GNOME Keyring, KWallet) instead, with an item created by
+    /// `secret-tool store --label='Murmur' service com.plyhdrn.murmur account anthropic-api-key`.
     public static func load() -> String? {
         if let key = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"], !key.isEmpty { return key }
 
         let process = Process()
+        #if os(macOS)
         process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
         process.arguments = ["find-generic-password", "-s", keychainService, "-a", keychainAccount, "-w"]
+        #else
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["secret-tool", "lookup", "service", keychainService, "account", keychainAccount]
+        #endif
         let output = Pipe()
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice

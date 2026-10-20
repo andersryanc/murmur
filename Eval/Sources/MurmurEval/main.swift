@@ -15,7 +15,7 @@ USAGE
 
   swift run MurmurEval clean "<raw transcript>" [--context notes]
       Run only the cleanup pass on a string. Add --prompt draft.md to try a prompt edit before
-      moving it into Core/Sources/MurmurCore/CleanupPrompt.swift.
+      moving it into Core/Sources/MurmurKit/CleanupPrompt.swift.
 
   swift run MurmurEval bench [--cleaner claude|apple|ollama:<model>] [--runs 3]
       Time a cleaner on built-in test dictations and show its output.

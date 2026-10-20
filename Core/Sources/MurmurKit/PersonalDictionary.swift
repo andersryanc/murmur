@@ -106,9 +106,17 @@ public struct PersonalDictionary: Codable, Equatable, Sendable {
 
     // MARK: - File
 
-    /// `~/Library/Application Support/Murmur/dictionary.json`
+    /// `~/Library/Application Support/Murmur/dictionary.json` on macOS;
+    /// `$XDG_CONFIG_HOME/murmur/dictionary.json` (usually `~/.config/murmur/`) on Linux.
     public static var defaultURL: URL {
+        #if os(macOS)
         URL.applicationSupportDirectory.appending(path: "Murmur/dictionary.json")
+        #else
+        let config = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"].flatMap { $0.isEmpty ? nil : $0 }
+            .map { URL(fileURLWithPath: $0) }
+            ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: ".config")
+        return config.appending(path: "murmur/dictionary.json")
+        #endif
     }
 
     /// The dictionary at `url`, or an empty one if the file doesn't exist yet.
