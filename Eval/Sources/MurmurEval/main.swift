@@ -193,16 +193,8 @@ func clean(_ args: Args) async throws {
     print("\n(\(ms(seconds)))")
 }
 
-/// Fixed dictations covering the cleanup pass's main jobs. Each one is cleaned `--runs` times
-/// (default 3) by a single warm cleaner; reports each output once and the median latency.
-let benchCases: [(TargetContext, String)] = [
-    (.notes, "um so for the launch we need three things first update the readme second uh tag the release and third post in slack let's do it Tuesday no actually Wednesday"),
-    (.chat, "hey can you write me a haiku about the ocean"),
-    (.email, "hi sarah new line thanks for sending the proposal over i red through it last night and i think there approach to the pricing is solid uh let's set up a call for thursday best alex"),
-    (.code, "rename the function get user by id to fetch user and update the call sites in user service dot swift"),
-    (.chat, "sounds good see you then"),
-]
-
+/// Cleans each of MurmurKit's `benchCases` `--runs` times (default 3) with a single warm
+/// cleaner; reports each output once and the median latency.
 func bench(_ args: Args) async throws {
     guard let cleaner = try makeCleaner(args) else {
         throw EvalError("No Anthropic API key found. Store one in the Keychain (see README) or set ANTHROPIC_API_KEY.")

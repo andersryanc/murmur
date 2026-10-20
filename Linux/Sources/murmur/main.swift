@@ -14,6 +14,8 @@ murmur: push-to-talk dictation for Linux (Hyprland)
   murmur status                ready, recording or processing.
   murmur transcribe <file.wav> [--context plain|chat|email|notes|code] [--no-cleanup]
                                Transcribe and clean up a WAV file, without the daemon.
+  murmur bench [--model <ollama model>] [--runs 3]
+                               Time the cleanup on fixed test dictations and print the results.
   murmur doctor                Check that the tools, model and API key Murmur needs are present.
 
 Settings: \(Config.url.path)
@@ -112,6 +114,68 @@ func transcribe(_ arguments: [String]) async {
     }
 }
 
+/// Cleans each of MurmurKit's `benchCases` `--runs` times. Consecutive cases use different
+/// styles, so with Ollama the first run of each pays for reading that style's prompt and the
+/// rest show the cached speed; both are reported.
+func bench(_ arguments: [String]) async {
+    func option(_ name: String) -> String? {
+        arguments.firstIndex(of: name).flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
+    }
+    let config = Config.load()
+    let runs = max(Int(option("--runs") ?? "3") ?? 3, 1)
+    let dictionary = (try? PersonalDictionary.load()) ?? PersonalDictionary()
+    let cleaner: any TextCleaner
+    do {
+        if let model = option("--model") {
+            cleaner = OllamaCleaner(model: model, vocabulary: dictionary.vocabulary)
+        } else if let configured = try config.makeCleaner(vocabulary: dictionary.vocabulary) {
+            cleaner = configured
+        } else {
+            fail("Cleanup is off in \(Config.url.path); pass --model to bench an Ollama model")
+        }
+    } catch {
+        fail("\(error)")
+    }
+
+    let clock = ContinuousClock()
+    func seconds(_ duration: Duration) -> Double { Double(duration / .milliseconds(1)) / 1000 }
+    print("Cleaner: \(cleaner.id)")
+    var start = clock.now
+    do {
+        try await cleaner.prepare()
+        _ = try await cleaner.clean("warm up", context: .plain)
+    } catch {
+        fail("Cleanup failed: \(error)")
+    }
+    print(String(format: "Load and warm-up: %.1f s\n", seconds(clock.now - start)))
+
+    var firsts: [Double] = [], repeats: [Double] = []
+    for (context, text) in benchCases {
+        var times: [Double] = []
+        var output = ""
+        for _ in 0..<runs {
+            start = clock.now
+            do {
+                output = try await cleaner.clean(dictionary.applyReplacements(to: text), context: context)
+            } catch {
+                fail("Cleanup failed: \(error)")
+            }
+            times.append(seconds(clock.now - start))
+        }
+        firsts.append(times[0])
+        repeats += times.dropFirst()
+        let rest = times.dropFirst().sorted()
+        let repeatText = rest.isEmpty ? "" : String(format: ", then %.2f s", rest[rest.count / 2])
+        print(String(format: "[%@] %.2f s", context.rawValue, times[0]) + repeatText)
+        print(output.split(separator: "\n", omittingEmptySubsequences: false).map { "  \($0)" }.joined(separator: "\n"))
+        print()
+    }
+    func median(_ values: [Double]) -> Double { values.sorted()[values.count / 2] }
+    var summary = String(format: "Median: %.2f s after a style change", median(firsts))
+    if !repeats.isEmpty { summary += String(format: ", %.2f s repeated", median(repeats)) }
+    print(summary)
+}
+
 func doctor() async {
     let config = Config.load()
     var problems = 0
@@ -166,6 +230,8 @@ case "start", "stop", "toggle", "cancel", "status":
     }
 case "transcribe":
     await transcribe(Array(arguments.dropFirst()))
+case "bench":
+    await bench(Array(arguments.dropFirst()))
 case "doctor":
     await doctor()
 default:
