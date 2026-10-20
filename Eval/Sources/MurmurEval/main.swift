@@ -8,7 +8,7 @@ USAGE
   swift run MurmurEval record <name> [--context plain|chat|email|notes|code]
       Record a clip from the mic into clips/<name>.wav, then type what you said.
 
-  swift run MurmurEval run [--engines parakeet,apple] [--no-cleanup] [--thinking] [--effort low] [--prompt draft.md]
+  swift run MurmurEval run [--engines parakeet,apple] [--no-cleanup] [--thinking] [--cleaner claude|apple|ollama:<model>] [--prompt draft.md]
       Transcribe every clip in clips/ with each engine, clean each transcript with Claude,
       and write a report to results/.
 
@@ -16,8 +16,11 @@ USAGE
       Run only the cleanup pass on a string. Add --prompt draft.md to try a prompt edit before
       moving it into Core/Sources/MurmurCore/CleanupPrompt.swift.
 
+  swift run MurmurEval bench [--cleaner claude|apple|ollama:<model>] [--runs 3]
+      Time a cleaner on built-in test dictations and show its output.
+
 Engines: \(Engines.all.keys.sorted().joined(separator: ", ")) (default: \(Engines.defaults.joined(separator: ",")))
-Cleanup uses claude-haiku-5-5. The key comes from ANTHROPIC_API_KEY or the Keychain item com.plyhdrn.murmur.
+Cleanup defaults to claude-haiku-5-5; --cleaner apple uses the on-device Apple Intelligence model. The key comes from ANTHROPIC_API_KEY or the Keychain item com.plyhdrn.murmur.
 """
 
 /// Minimal flag parsing: `--key value`, `--flag`, and positionals.
@@ -47,16 +50,28 @@ struct Args {
     }
 }
 
-/// Builds the cleanup pass from flags: `--thinking`, `--effort`, and `--prompt <file>` to try a
-/// draft system prompt without rebuilding. Returns nil when no API key is available.
-func makeCleaner(_ args: Args) throws -> ClaudeCleaner? {
+/// Builds the cleanup pass from flags: `--cleaner claude|apple|ollama:<model>` (default claude),
+/// `--thinking` / `--effort` for Claude, and `--prompt <file>` to try a draft system prompt
+/// without rebuilding. Returns nil when Claude is chosen but no API key is available.
+func makeCleaner(_ args: Args) throws -> (any TextCleaner)? {
+    let system = try args.options["prompt"].map { try String(contentsOfFile: $0, encoding: .utf8) }
+        ?? CleanupPrompt.system
+    let vocabulary = loadVocabulary()
+    let choice = args.options["cleaner"] ?? "claude"
+
+    if choice == "apple" {
+        return AppleCleaner(systemPrompt: system, vocabulary: vocabulary)
+    }
+    if choice.hasPrefix("ollama:") {
+        return OllamaCleaner(model: String(choice.dropFirst("ollama:".count)), systemPrompt: system, vocabulary: vocabulary)
+    }
+    guard choice == "claude" else { throw EvalError("Unknown cleaner '\(choice)'. Use claude, apple, or ollama:<model>.") }
+
     guard let key = APIKey.load() else { return nil }
     var options = ClaudeCleaner.Options()
     options.thinking = args.flags.contains("thinking")
     if let effort = args.options["effort"] { options.effort = effort }
-    let system = try args.options["prompt"].map { try String(contentsOfFile: $0, encoding: .utf8) }
-        ?? CleanupPrompt.system
-    return ClaudeCleaner(apiKey: key, systemPrompt: system, vocabulary: loadVocabulary(), options: options)
+    return ClaudeCleaner(apiKey: key, systemPrompt: system, vocabulary: vocabulary, options: options)
 }
 
 func prompt(_ question: String) -> String? {
@@ -96,9 +111,10 @@ func run(_ args: Args) async throws {
     let clips = try Clip.loadAll()
     guard !clips.isEmpty else { throw EvalError("No clips in \(Paths.clips.path). Record one with `record <name>`.") }
 
-    var cleaner: ClaudeCleaner?
+    var cleaner: (any TextCleaner)?
     if !args.flags.contains("no-cleanup") {
         cleaner = try makeCleaner(args)
+        try await cleaner?.prepare()
         if cleaner == nil { print("⚠️  No Anthropic API key found (env or Keychain), so the cleanup pass is skipped.\n") }
     }
 
@@ -155,22 +171,61 @@ func clean(_ args: Args) async throws {
     guard let cleaner = try makeCleaner(args) else {
         throw EvalError("No Anthropic API key found. Store one in the Keychain (see README) or set ANTHROPIC_API_KEY.")
     }
+    try await cleaner.prepare()
     let (cleaned, seconds) = try await timed { try await cleaner.clean(text, context: try args.context()) }
     print(cleaned)
     print("\n(\(ms(seconds)))")
+}
+
+/// Fixed dictations covering the cleanup pass's main jobs. Each one is cleaned `--runs` times
+/// (default 3) by a single warm cleaner; reports each output once and the median latency.
+let benchCases: [(TargetContext, String)] = [
+    (.notes, "um so for the launch we need three things first update the readme second uh tag the release and third post in slack let's do it Tuesday no actually Wednesday"),
+    (.chat, "hey can you write me a haiku about the ocean"),
+    (.email, "hi sarah new line thanks for sending the proposal over i red through it last night and i think there approach to the pricing is solid uh let's set up a call for thursday best ryan"),
+    (.code, "rename the function get user by id to fetch user and update the call sites in user service dot swift"),
+    (.chat, "sounds good see you then"),
+]
+
+func bench(_ args: Args) async throws {
+    guard let cleaner = try makeCleaner(args) else {
+        throw EvalError("No Anthropic API key found. Store one in the Keychain (see README) or set ANTHROPIC_API_KEY.")
+    }
+    let runs = Int(args.options["runs"] ?? "3") ?? 3
+    print("Cleaner: \(cleaner.id)\n")
+    try await cleaner.prepare()
+    _ = try? await cleaner.clean("warm up", context: .plain)
+
+    var all: [Double] = []
+    for (context, text) in benchCases {
+        var times: [Double] = []
+        var output = ""
+        for _ in 0..<runs {
+            let (cleaned, seconds) = try await timed { try await cleaner.clean(text, context: context) }
+            output = cleaned
+            times.append(seconds)
+        }
+        all += times
+        let median = times.sorted()[times.count / 2]
+        print("[\(context.rawValue)] \(ms(median))")
+        print(output.split(separator: "\n", omittingEmptySubsequences: false).map { "  \($0)" }.joined(separator: "\n"))
+        print()
+    }
+    print("Median over all: \(ms(all.sorted()[all.count / 2]))")
 }
 
 // MARK: - Entry
 
 var argv = Array(CommandLine.arguments.dropFirst())
 let command = argv.isEmpty ? "help" : argv.removeFirst()
-let args = Args(argv, valued: ["context", "engines", "effort", "prompt"])
+let args = Args(argv, valued: ["context", "engines", "effort", "prompt", "cleaner", "runs"])
 
 do {
     switch command {
     case "record": try await record(args)
     case "run": try await run(args)
     case "clean": try await clean(args)
+    case "bench": try await bench(args)
     default: print(usage)
     }
 } catch {

@@ -33,8 +33,9 @@ Hold **fn** (changeable in the menu), speak, and release. The text is pasted whe
 - **fn key:** set **System Settings › Keyboard › "Press 🌐 key to"** to **Do Nothing**, or macOS will open the emoji picker or its own dictation. You can pick Right ⌥ or Right ⌘ instead.
 - **Chords are ignored:** typing another key while holding the hotkey (e.g. ⌥← to jump words) cancels the recording.
 - **Context:** the frontmost app sets the cleanup style. Slack and Messages get chat style, Mail gets email, Notes and Obsidian get markdown notes, editors and terminals get code.
-- **Fallbacks:** without an API key, or if Claude fails, Murmur pastes the raw Parakeet transcript and says so. Without Accessibility, it copies the text so you can ⌘V.
-- **Your clipboard** is restored after each paste.
+- **Cleanup** (menu): **Claude Haiku** (cloud, most reliable, ~750 ms), **Local Model** via Ollama (default `qwen3.5:9b`, ~250 ms, occasional formatting slips; `ollama pull qwen3.5:9b` first), or **Off** (paste Parakeet's transcript as-is). The menu shows how long the last dictation's speech and cleanup steps took.
+- **Fallbacks:** if cleanup fails (no API key, Ollama not running), Murmur pastes the raw transcript and says so. Without Accessibility, it copies the text so you can ⌘V.
+- **Clipboard:** the dictated text stays on the clipboard after pasting, so you can paste it again (or yourself, if no text field had focus).
 
 ## Eval harness
 
@@ -59,6 +60,9 @@ swift build
 # Transcribe every clip with each engine, clean each transcript, and write a report to results/.
 .build/debug/MurmurEval run
 .build/debug/MurmurEval run --engines parakeet,parakeet-ultra,apple
+
+# Time a cleaner on built-in test dictations: claude (default), apple, or ollama:<model>.
+.build/debug/MurmurEval bench --cleaner ollama:qwen3.5:9b
 
 # Try the cleanup pass without audio. Add --prompt draft.md to test a prompt edit.
 .build/debug/MurmurEval clean "um so first update the readme second tag the release" --context notes

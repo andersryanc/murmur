@@ -12,6 +12,44 @@ struct Dictation: Identifiable {
     let date = Date()
 }
 
+/// How the raw transcript gets cleaned up before pasting.
+enum CleanupMode: String, CaseIterable, Identifiable {
+    /// Paste Parakeet's transcript as-is. It has basic punctuation and casing, but keeps filler
+    /// words and doesn't apply self-corrections or list formatting.
+    case off
+    /// Claude Haiku 5.5 on the Anthropic API.
+    case claude
+    /// A model served by Ollama on this Mac.
+    case local
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .off: "Off: Paste Raw Transcript"
+        case .claude: "Claude Haiku (Cloud)"
+        case .local: "Local Model (Ollama)"
+        }
+    }
+}
+
+/// How long each stage of the last dictation took, shown in the menu.
+struct Timing {
+    let speech: Duration
+    let cleanup: Duration?
+    let cleaner: String?
+
+    var summary: String {
+        var text = "Last: speech \(Self.ms(speech))"
+        if let cleanup, let cleaner { text += " · cleanup \(Self.ms(cleanup)) (\(cleaner))" }
+        return text
+    }
+
+    private static func ms(_ duration: Duration) -> String {
+        "\(Int(duration / .milliseconds(1))) ms"
+    }
+}
+
 /// Runs the whole push-to-talk loop: key down → record → key up → transcribe → clean → paste.
 @Observable
 final class AppModel {
@@ -32,6 +70,9 @@ final class AppModel {
     private(set) var hasAPIKey = false
     /// Shown in the HUD for a moment after a dictation, e.g. when cleanup failed.
     private(set) var notice: String?
+    private(set) var lastTiming: Timing?
+    /// Models pulled into Ollama, for the local model picker.
+    private(set) var localModels: [String] = []
 
     var hotkey: Hotkey {
         didSet {
@@ -40,8 +81,18 @@ final class AppModel {
         }
     }
 
-    var cleanupEnabled: Bool {
-        didSet { UserDefaults.standard.set(cleanupEnabled, forKey: "cleanupEnabled") }
+    var cleanup: CleanupMode {
+        didSet {
+            UserDefaults.standard.set(cleanup.rawValue, forKey: "cleanup")
+            if cleanup == .local { prepareLocalModel() }
+        }
+    }
+
+    var localModel: String {
+        didSet {
+            UserDefaults.standard.set(localModel, forKey: "localModel")
+            prepareLocalModel()
+        }
     }
 
     var launchAtLogin: Bool {
@@ -70,7 +121,10 @@ final class AppModel {
     init() {
         let defaults = UserDefaults.standard
         hotkey = defaults.string(forKey: "hotkey").flatMap(Hotkey.init) ?? .fn
-        cleanupEnabled = defaults.object(forKey: "cleanupEnabled") as? Bool ?? true
+        // `cleanupEnabled` was the original on/off toggle; carry an "off" choice forward.
+        let legacyOff = defaults.object(forKey: "cleanupEnabled") as? Bool == false
+        cleanup = defaults.string(forKey: "cleanup").flatMap(CleanupMode.init) ?? (legacyOff ? .off : .claude)
+        localModel = defaults.string(forKey: "localModel") ?? "qwen3.5:9b"
 
         hotkeys.hotkey = hotkey
         hotkeys.onPress = { [weak self] in self?.startRecording() }
@@ -108,6 +162,8 @@ final class AppModel {
         }
         hotkeys.install()
         watchAccessibility()
+        await refreshLocalModels()
+        if cleanup == .local { prepareLocalModel() }
 
         phase = .loading("Loading speech model…")
         do {
@@ -138,6 +194,22 @@ final class AppModel {
 
     func refreshAPIKey() {
         hasAPIKey = APIKey.load() != nil
+    }
+
+    func refreshLocalModels() async {
+        localModels = await OllamaCleaner.installedModels()
+    }
+
+    /// Loads the local model into memory now, so the next dictation doesn't wait for it.
+    private func prepareLocalModel() {
+        let cleaner = OllamaCleaner(model: localModel)
+        Task {
+            do {
+                try await cleaner.prepare()
+            } catch {
+                flash("Local model \(localModel) isn't ready: \(error)")
+            }
+        }
     }
 
     // MARK: - Push to talk
@@ -194,29 +266,31 @@ final class AppModel {
             hud?.hide(after: notice == nil ? 0 : 2.5)
         }
 
+        let clock = ContinuousClock()
         let raw: String
+        let speechStart = clock.now
         do {
             raw = try await engine.transcribe(samples)
         } catch {
             notice = "Transcription failed"
             return
         }
+        let speech = clock.now - speechStart
         guard !raw.isEmpty else { return }
 
         var text = raw
-        if cleanupEnabled {
-            if let key = APIKey.load() {
-                hasAPIKey = true
-                do {
-                    text = try await ClaudeCleaner(apiKey: key).clean(raw, context: context)
-                } catch {
-                    notice = "Cleanup failed, pasted raw text"
-                }
-            } else {
-                hasAPIKey = false
-                notice = "No API key, pasted raw text"
+        var cleanupTime: Duration?
+        let cleaner = makeCleaner()
+        if let cleaner {
+            let cleanupStart = clock.now
+            do {
+                text = try await cleaner.clean(raw, context: context)
+                cleanupTime = clock.now - cleanupStart
+            } catch {
+                notice = "Cleanup failed, pasted raw text"
             }
         }
+        lastTiming = Timing(speech: speech, cleanup: cleanupTime, cleaner: cleanupTime == nil ? nil : cleaner?.id)
         guard !text.isEmpty else { return }
 
         switch Paster.paste(text) {
@@ -225,6 +299,24 @@ final class AppModel {
         }
         history.insert(Dictation(text: text, raw: raw, appName: appName), at: 0)
         if history.count > 10 { history.removeLast() }
+    }
+
+    /// The cleaner for the current mode, or nil to paste the raw transcript.
+    private func makeCleaner() -> (any TextCleaner)? {
+        switch cleanup {
+        case .off:
+            return nil
+        case .claude:
+            guard let key = APIKey.load() else {
+                hasAPIKey = false
+                notice = "No API key, pasted raw text"
+                return nil
+            }
+            hasAPIKey = true
+            return ClaudeCleaner(apiKey: key)
+        case .local:
+            return OllamaCleaner(model: localModel)
+        }
     }
 
     // MARK: - Helpers

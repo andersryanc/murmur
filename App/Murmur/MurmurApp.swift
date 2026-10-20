@@ -20,6 +20,9 @@ private struct MenuContent: View {
 
     var body: some View {
         Text(model.statusText)
+        if let timing = model.lastTiming {
+            Text(timing.summary)
+        }
 
         if !model.accessibilityGranted {
             Button("Grant Accessibility Access…") { Permissions.openAccessibilitySettings() }
@@ -27,7 +30,7 @@ private struct MenuContent: View {
         if !model.microphoneGranted {
             Button("Grant Microphone Access…") { Permissions.openMicrophoneSettings() }
         }
-        if model.cleanupEnabled && !model.hasAPIKey {
+        if model.cleanup == .claude && !model.hasAPIKey {
             Button("No Anthropic API key found. Check again") { model.refreshAPIKey() }
         }
 
@@ -48,7 +51,18 @@ private struct MenuContent: View {
         Picker("Push-to-Talk Key", selection: $model.hotkey) {
             ForEach(Hotkey.allCases) { Text($0.label).tag($0) }
         }
-        Toggle("Clean Up with Claude", isOn: $model.cleanupEnabled)
+        Picker("Cleanup", selection: $model.cleanup) {
+            ForEach(CleanupMode.allCases) { Text($0.label).tag($0) }
+        }
+        if model.cleanup == .local {
+            Picker("Local Model", selection: $model.localModel) {
+                // Keep the current choice listed even if Ollama doesn't have it yet.
+                ForEach(Array(Set(model.localModels + [model.localModel])).sorted(), id: \.self) { name in
+                    Text(model.localModels.contains(name) ? name : "\(name) (not installed)").tag(name)
+                }
+            }
+            Button("Refresh Local Models") { Task { await model.refreshLocalModels() } }
+        }
         Toggle("Launch at Login", isOn: $model.launchAtLogin)
 
         Divider()

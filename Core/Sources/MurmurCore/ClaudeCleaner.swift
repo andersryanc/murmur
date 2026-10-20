@@ -1,8 +1,8 @@
 import Foundation
 
-/// The LLM post-processing pass: raw transcript in, text-you-meant-to-type out.
-/// Swift has no official Anthropic SDK, so this calls the Messages API over HTTP.
-public struct ClaudeCleaner: Sendable {
+/// Cleanup via Claude on the Anthropic API. Swift has no official Anthropic SDK, so this calls
+/// the Messages API over HTTP.
+public struct ClaudeCleaner: TextCleaner {
     public struct Options: Sendable {
         public var model = "claude-haiku-5-5"
         /// Thinking off keeps latency low for a short rewrite.
@@ -24,12 +24,10 @@ public struct ClaudeCleaner: Sendable {
         self.options = options
     }
 
+    public var id: String { options.model }
+
     public func clean(_ transcript: String, context: TargetContext) async throws -> String {
-        var user = "<context>\(context.rawValue)</context>\n"
-        if !vocabulary.isEmpty {
-            user += "<vocabulary>\n\(vocabulary.joined(separator: "\n"))\n</vocabulary>\n"
-        }
-        user += "<transcript>\n\(transcript)\n</transcript>"
+        let user = cleanupUserMessage(transcript, context: context, vocabulary: vocabulary)
 
         let body: [String: Any] = [
             "model": options.model,
