@@ -41,10 +41,9 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.plyhdrn.murmur
         PRODUCT_NAME: Murmur
-        # Signed with your Apple Development identity so macOS keeps the Accessibility and
-        # Microphone permissions across rebuilds. No provisioning profile is needed.
+        # Signed with a stable identity (set in Signing.xcconfig) so macOS keeps the Accessibility
+        # and Microphone permissions across rebuilds. No provisioning profile is needed.
         CODE_SIGN_STYLE: Manual
-        CODE_SIGN_IDENTITY: Apple Development
         PROVISIONING_PROFILE_SPECIFIER: ""
         ENABLE_HARDENED_RUNTIME: YES
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor

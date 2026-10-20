@@ -1,8 +1,19 @@
-// Code signing for Murmur. Your Apple Developer Team ID is personal, so it lives in
-// Signing.local.xcconfig (gitignored), which this file includes if it exists:
+// Code signing for Murmur. Your signing settings are personal, so they live in
+// Signing.local.xcconfig (gitignored), which this file includes if it exists. Either:
+//
+// An Apple Developer team (find the Team ID in the OU field of your certificate:
+//   security find-certificate -c "Apple Development" -p | openssl x509 -noout -subject):
 //
 //   DEVELOPMENT_TEAM = ABCDE12345
 //
-// Find your Team ID in the OU field of your certificate:
-//   security find-certificate -c "Apple Development" -p | openssl x509 -noout -subject
+// Or, with no Apple account, a self-signed certificate (see "Building without an Apple
+// account" in the README):
+//
+//   MURMUR_SIGN_IDENTITY = Murmur Self-Signed
+//   DEVELOPMENT_TEAM =
+//
+// MURMUR_SIGN_IDENTITY rather than CODE_SIGN_IDENTITY, so scripts/release.sh can override it on
+// the command line without also signing the Swift packages' targets.
+MURMUR_SIGN_IDENTITY = Apple Development
 #include? "Signing.local.xcconfig"
+CODE_SIGN_IDENTITY = $(MURMUR_SIGN_IDENTITY)
