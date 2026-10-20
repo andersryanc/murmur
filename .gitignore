@@ -1,0 +1,9 @@
+.DS_Store
+.build/
+.swiftpm/
+xcuserdata/
+DerivedData/
+# Your voice recordings and run output stay local.
+Eval/clips/*.wav
+Eval/clips/*.m4a
+Eval/results/

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.plyhdrn.murmur.eval</string>
+    <key>CFBundleName</key>
+    <string>MurmurEval</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Murmur records dictation clips for the evaluation harness.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Murmur transcribes clips with Apple's on-device speech model.</string>
+</dict>
+</plist>

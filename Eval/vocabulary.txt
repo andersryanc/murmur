@@ -1,0 +1,2 @@
+# Names, jargon and product terms the cleanup pass should spell correctly. One per line.
+Murmur
