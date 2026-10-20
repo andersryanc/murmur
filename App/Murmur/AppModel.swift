@@ -137,6 +137,8 @@ final class AppModel {
     private var targetApp: NSRunningApplication?
     private var chordCancelled = false
     private let sounds = SoundEffects()
+    /// Your words and replacements, edited in the Dictionary window.
+    let dictionary = DictionaryStore()
 
     init() {
         let defaults = UserDefaults.standard
@@ -326,13 +328,19 @@ final class AppModel {
         let speech = clock.now - speechStart
         guard !raw.isEmpty else { return }
 
-        var text = raw
+        // Replacements run first and always, so they work with cleanup off and the cleanup
+        // model sees the corrected terms.
+        dictionary.reloadIfChangedOnDisk()
+        let personal = dictionary.dictionary
+        let corrected = personal.applyReplacements(to: raw)
+
+        var text = corrected
         var cleanupTime: Duration?
-        let cleaner = makeCleaner()
+        let cleaner = makeCleaner(vocabulary: personal.vocabulary)
         if let cleaner {
             let cleanupStart = clock.now
             do {
-                text = try await cleaner.clean(raw, context: context)
+                text = try await cleaner.clean(corrected, context: context)
                 cleanupTime = clock.now - cleanupStart
             } catch {
                 notice = "Cleanup failed, pasted raw text"
@@ -350,7 +358,7 @@ final class AppModel {
     }
 
     /// The cleaner for the current mode, or nil to paste the raw transcript.
-    private func makeCleaner() -> (any TextCleaner)? {
+    private func makeCleaner(vocabulary: [String]) -> (any TextCleaner)? {
         switch cleanup {
         case .off:
             return nil
@@ -361,9 +369,9 @@ final class AppModel {
                 return nil
             }
             hasAPIKey = true
-            return ClaudeCleaner(apiKey: key)
+            return ClaudeCleaner(apiKey: key, vocabulary: vocabulary)
         case .local:
-            return OllamaCleaner(model: localModel)
+            return OllamaCleaner(model: localModel, vocabulary: vocabulary)
         }
     }
 

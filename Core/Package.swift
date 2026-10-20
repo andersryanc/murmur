@@ -15,5 +15,6 @@ let package = Package(
             name: "MurmurCore",
             dependencies: [.product(name: "FluidAudio", package: "FluidAudio")]
         ),
+        .testTarget(name: "MurmurCoreTests", dependencies: ["MurmurCore"]),
     ]
 )

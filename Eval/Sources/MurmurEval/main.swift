@@ -27,7 +27,7 @@ USAGE
       List audio input devices (* = system default).
 
 Engines: \(Engines.all.keys.sorted().joined(separator: ", ")) (default: \(Engines.defaults.joined(separator: ",")))
-Cleanup defaults to claude-haiku-5-5; --cleaner apple uses the on-device Apple Intelligence model. The key comes from ANTHROPIC_API_KEY or the Keychain item com.plyhdrn.murmur.
+All commands use your Murmur dictionary (or --dictionary <file> / none). Cleanup defaults to claude-haiku-5-5; --cleaner apple uses the on-device Apple Intelligence model. The key comes from ANTHROPIC_API_KEY or the Keychain item com.plyhdrn.murmur.
 """
 
 /// Minimal flag parsing: `--key value`, `--flag`, and positionals.
@@ -57,13 +57,22 @@ struct Args {
     }
 }
 
+/// The personal dictionary the app uses (`~/Library/Application Support/Murmur/dictionary.json`),
+/// another file with `--dictionary <path>`, or none with `--dictionary none`, so evals run with
+/// your real words and replacements.
+func loadDictionary(_ args: Args) throws -> PersonalDictionary {
+    if args.options["dictionary"] == "none" { return PersonalDictionary() }
+    let url = args.options["dictionary"].map { URL(fileURLWithPath: $0) } ?? PersonalDictionary.defaultURL
+    return try PersonalDictionary.load(from: url)
+}
+
 /// Builds the cleanup pass from flags: `--cleaner claude|apple|ollama:<model>` (default claude),
 /// `--thinking` / `--effort` for Claude, and `--prompt <file>` to try a draft system prompt
 /// without rebuilding. Returns nil when Claude is chosen but no API key is available.
 func makeCleaner(_ args: Args) throws -> (any TextCleaner)? {
     let system = try args.options["prompt"].map { try String(contentsOfFile: $0, encoding: .utf8) }
         ?? CleanupPrompt.system
-    let vocabulary = loadVocabulary()
+    let vocabulary = try loadDictionary(args).vocabulary
     let choice = args.options["cleaner"] ?? "claude"
 
     if choice == "apple" {
@@ -77,6 +86,7 @@ func makeCleaner(_ args: Args) throws -> (any TextCleaner)? {
     guard let key = APIKey.load() else { return nil }
     var options = ClaudeCleaner.Options()
     options.thinking = args.flags.contains("thinking")
+    options.structuredReply = !args.flags.contains("plain-reply")
     if let effort = args.options["effort"] { options.effort = effort }
     return ClaudeCleaner(apiKey: key, systemPrompt: system, vocabulary: vocabulary, options: options)
 }
@@ -116,6 +126,7 @@ func run(_ args: Args) async throws {
     let engineIDs = args.options["engines"]?.split(separator: ",").map(String.init) ?? Engines.defaults
     let engines = try Engines.make(engineIDs)
     let clips = try Clip.loadAll()
+    let dictionary = try loadDictionary(args)
     guard !clips.isEmpty else { throw EvalError("No clips in \(Paths.clips.path). Record one with `record <name>`.") }
 
     var cleaner: (any TextCleaner)?
@@ -148,7 +159,7 @@ func run(_ args: Args) async throws {
                 if let cleaner {
                     do {
                         let (cleaned, cleanupSeconds) = try await timed {
-                            try await cleaner.clean(raw, context: clip.meta.context)
+                            try await cleaner.clean(dictionary.applyReplacements(to: raw), context: clip.meta.context)
                         }
                         result.cleaned = cleaned
                         result.cleanupSeconds = cleanupSeconds
@@ -179,7 +190,8 @@ func clean(_ args: Args) async throws {
         throw EvalError("No Anthropic API key found. Store one in the Keychain (see README) or set ANTHROPIC_API_KEY.")
     }
     try await cleaner.prepare()
-    let (cleaned, seconds) = try await timed { try await cleaner.clean(text, context: try args.context()) }
+    let input = try loadDictionary(args).applyReplacements(to: text)
+    let (cleaned, seconds) = try await timed { try await cleaner.clean(input, context: try args.context()) }
     print(cleaned)
     print("\n(\(ms(seconds)))")
 }
@@ -199,6 +211,7 @@ func bench(_ args: Args) async throws {
         throw EvalError("No Anthropic API key found. Store one in the Keychain (see README) or set ANTHROPIC_API_KEY.")
     }
     let runs = Int(args.options["runs"] ?? "3") ?? 3
+    let dictionary = try loadDictionary(args)
     print("Cleaner: \(cleaner.id)\n")
     try await cleaner.prepare()
     _ = try? await cleaner.clean("warm up", context: .plain)
@@ -208,7 +221,8 @@ func bench(_ args: Args) async throws {
         var times: [Double] = []
         var output = ""
         for _ in 0..<runs {
-            let (cleaned, seconds) = try await timed { try await cleaner.clean(text, context: context) }
+            let input = dictionary.applyReplacements(to: text)
+            let (cleaned, seconds) = try await timed { try await cleaner.clean(input, context: context) }
             output = cleaned
             times.append(seconds)
         }
@@ -225,7 +239,7 @@ func bench(_ args: Args) async throws {
 
 var argv = Array(CommandLine.arguments.dropFirst())
 let command = argv.isEmpty ? "help" : argv.removeFirst()
-let args = Args(argv, valued: ["context", "engines", "effort", "prompt", "cleaner", "runs"])
+let args = Args(argv, valued: ["context", "engines", "effort", "prompt", "cleaner", "runs", "dictionary"])
 
 do {
     switch command {

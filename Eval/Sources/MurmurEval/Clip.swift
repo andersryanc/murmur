@@ -10,7 +10,6 @@ enum Paths {
         .deletingLastPathComponent()  // Eval
     static let clips = evalRoot.appending(path: "clips")
     static let results = evalRoot.appending(path: "results")
-    static let vocabulary = evalRoot.appending(path: "vocabulary.txt")
 }
 
 /// Sidecar metadata stored next to each recording as `<name>.json`.
@@ -50,13 +49,4 @@ struct Clip {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(meta).write(to: dir.appending(path: "\(name).json"))
     }
-}
-
-/// Custom terms (names, jargon, product names) the cleanup stage should prefer when the
-/// recognizer mishears them. One per line; `#` starts a comment.
-func loadVocabulary() -> [String] {
-    guard let text = try? String(contentsOf: Paths.vocabulary, encoding: .utf8) else { return [] }
-    return text.split(whereSeparator: \.isNewline)
-        .map { $0.trimmingCharacters(in: .whitespaces) }
-        .filter { !$0.isEmpty && !$0.hasPrefix("#") }
 }

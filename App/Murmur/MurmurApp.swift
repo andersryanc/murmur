@@ -12,11 +12,18 @@ struct MurmurApp: App {
             Image(systemName: model.phase == .recording ? "waveform.circle.fill" : "waveform")
         }
         .menuBarExtraStyle(.menu)
+
+        Window("Dictionary", id: "dictionary") {
+            DictionaryView(store: model.dictionary)
+        }
+        .defaultSize(width: 580, height: 480)
+        .defaultLaunchBehavior(.suppressed)
     }
 }
 
 private struct MenuContent: View {
     @Bindable var model: AppModel
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Text(model.statusText)
@@ -81,6 +88,14 @@ private struct MenuContent: View {
             Text("Off").tag(SoundTheme?.none)
         }
         Toggle("Launch at Login", isOn: $model.launchAtLogin)
+
+        Divider()
+
+        Button("Dictionary…") {
+            openWindow(id: "dictionary")
+            // Murmur has no Dock icon, so bring the window forward explicitly.
+            NSApplication.shared.activate()
+        }
 
         Divider()
 

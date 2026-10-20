@@ -8,6 +8,8 @@ public struct ClaudeCleaner: TextCleaner {
         /// Thinking off keeps latency low for a short rewrite.
         public var thinking = false
         public var effort = "low"
+        /// Ask for a JSON reply with a throwaway `note` field (see `jsonReplyInstructions`).
+        public var structuredReply = true
         public init() {}
     }
 
@@ -29,12 +31,14 @@ public struct ClaudeCleaner: TextCleaner {
     public func clean(_ transcript: String, context: TargetContext) async throws -> String {
         let user = cleanupUserMessage(transcript, context: context, vocabulary: vocabulary)
 
+        var outputConfig: [String: Any] = ["effort": options.effort]
+        if options.structuredReply { outputConfig["format"] = Self.replyFormat }
         let body: [String: Any] = [
             "model": options.model,
             "max_tokens": 4096,
-            "system": systemPrompt,
+            "system": systemPrompt + (options.structuredReply ? Self.jsonReplyInstructions : ""),
             "messages": [["role": "user", "content": user]],
-            "output_config": ["effort": options.effort],
+            "output_config": outputConfig,
             "thinking": ["type": options.thinking ? "adaptive" : "disabled"],
         ]
 
@@ -59,7 +63,39 @@ public struct ClaudeCleaner: TextCleaner {
         default: break
         }
         let output = message.content.filter { $0.type == "text" }.compactMap(\.text).joined()
-        return CleanupPrompt.finalize(output, transcript: transcript)
+        // The schema guarantees valid JSON; fall back to the raw reply just in case.
+        let reply = options.structuredReply ? try? JSONDecoder().decode(Reply.self, from: Data(output.utf8)) : nil
+        return CleanupPrompt.finalize(reply?.text ?? output, transcript: transcript)
+    }
+
+    /// With thinking off, an unsure model sometimes reasons out loud in its answer ("Wait, I
+    /// should check…"), which would be pasted. A structured reply gives that a harmless place
+    /// to go: `note` comes first and is thrown away, and only `text` is ever pasted.
+    private static let jsonReplyInstructions = """
+
+
+    ## Reply format
+
+    Reply as JSON. Put any brief uncertainty about the transcript in `note` (or leave it empty). \
+    Put exactly the text to type in `text`, or `<empty/>` if there is nothing to type. Nothing in \
+    `text` may comment on the transcript.
+    """
+
+    private static var replyFormat: [String: Any] { [
+        "type": "json_schema",
+        "schema": [
+            "type": "object",
+            "properties": [
+                "note": ["type": "string"],
+                "text": ["type": "string"],
+            ],
+            "required": ["note", "text"],
+            "additionalProperties": false,
+        ] as [String: Any],
+    ] }
+
+    private struct Reply: Decodable {
+        let text: String
     }
 
     private struct MessageResponse: Decodable {
