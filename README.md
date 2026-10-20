@@ -1,6 +1,6 @@
 # Murmur
 
-Push-to-talk dictation for macOS. Hold a key, speak, and polished text appears wherever your cursor is.
+Push-to-talk dictation for macOS, with a Linux (Hyprland) version in [`Linux/`](Linux). Hold a key, speak, and polished text appears wherever your cursor is.
 
 The pipeline:
 
@@ -16,8 +16,9 @@ Most of the quality comes from the cleanup pass. It fixes misheard words, drops 
 | Folder | What |
 |---|---|
 | [`App/`](App) | The menu-bar app. `App/project.yml` generates the Xcode project with XcodeGen. |
-| [`Core/`](Core) | `MurmurKit`: the cleanup prompt, Claude and Ollama cleanup, the Dictionary. Plain Foundation, so it also builds on Linux. `MurmurCore` (macOS only) adds audio capture and the speech engines, and re-exports `MurmurKit`. Shared by the app and the eval. |
+| [`Core/`](Core) | `MurmurKit`: the cleanup prompt, Claude and Ollama cleanup, the Dictionary, the start/stop sounds. Plain Foundation, so it also builds on Linux. `MurmurCore` (macOS only) adds audio capture and the speech engines, and re-exports `MurmurKit`. Shared by the app and the eval. |
 | [`Eval/`](Eval) | CLI harness that scores engines and the cleanup prompt against recordings of your voice. |
+| [`Linux/`](Linux) | The Linux version: a daemon driven by Hyprland key bindings, with Parakeet on the CPU via sherpa-onnx. Setup, status and a testing checklist are in [`Linux/README.md`](Linux/README.md). |
 
 ## The app
 

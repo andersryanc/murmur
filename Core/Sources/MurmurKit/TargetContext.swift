@@ -14,6 +14,31 @@ public enum TargetContext: String, Codable, CaseIterable, Sendable {
         }
     }
 
+    /// Best guess from the focused window's class on Linux (`hyprctl activewindow -j`), e.g.
+    /// "Slack", "Alacritty", "obsidian". Matches by substring, which also catches Chromium web
+    /// apps, whose class carries the site's address (e.g. "chrome-app.slack.com__client-Default").
+    public init(windowClass: String?) {
+        guard let name = windowClass?.lowercased(), !name.isEmpty else { self = .plain; return }
+        self = Self.knownWindowClasses.first(where: { name.contains($0.fragment) })?.context ?? .plain
+    }
+
+    /// Checked in order, so a more specific fragment must come before a shorter one inside it.
+    private static let knownWindowClasses: [(fragment: String, context: TargetContext)] = [
+        // Chat
+        ("slack", .chat), ("discord", .chat), ("vesktop", .chat), ("signal", .chat),
+        ("telegram", .chat), ("whatsapp", .chat), ("element", .chat), ("teams", .chat),
+        // Email
+        ("thunderbird", .email), ("mail.google.com", .email), ("hey.com", .email), ("geary", .email),
+        ("evolution", .email), ("outlook", .email), ("superhuman", .email), ("betterbird", .email),
+        // Notes and docs
+        ("obsidian", .notes), ("notion", .notes), ("logseq", .notes), ("typora", .notes),
+        ("joplin", .notes), ("docs.google.com", .notes),
+        // Code: editors, terminals, AI coding tools
+        ("code", .code), ("cursor", .code), ("zed", .code), ("jetbrains", .code), ("neovide", .code),
+        ("alacritty", .code), ("kitty", .code), ("ghostty", .code), ("foot", .code),
+        ("wezterm", .code), ("konsole", .code), ("gnome-terminal", .code), ("claude", .code),
+    ]
+
     private static let knownApps: [String: TargetContext] = [
         // Chat
         "com.tinyspeck.slackmacgap": .chat,

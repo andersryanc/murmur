@@ -20,6 +20,12 @@ Ideas for what's next, roughly in priority order. Nothing here is committed to; 
 - [ ] **Settings window.** Paste the Anthropic API key in the app (stored in the Keychain) instead of using the `security` command.
 - [ ] **Distribution.** Sign with a personal Developer ID, notarize, and ship updates (e.g. Sparkle).
 
+## Linux
+
+- [ ] **Test on the Omarchy machine.** Built and checked in Docker only; work through the testing checklist in [`Linux/README.md`](Linux/README.md) (mic, paste, key bindings, keyring, x86_64 build, latency).
+- [ ] **A "listening" indicator.** A Waybar module that polls `murmur status`, or a layer-shell overlay like the Mac HUD.
+- [ ] **Packaging.** An AUR `PKGBUILD`, so installing doesn't need the repo.
+
 ## Known issues
 
 - Local cleanup (`qwen3.5:9b`) occasionally drops a leading "yeah" or adds a heading in notes. Claude doesn't.
