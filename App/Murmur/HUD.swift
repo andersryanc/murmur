@@ -70,7 +70,7 @@ struct HUDView: View {
         .frame(height: 40)
         .background {
             Capsule()
-                .fill(.black.opacity(0.82))
+                .fill(.black)
                 .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 0.5))
                 .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
         }
@@ -89,7 +89,7 @@ struct HUDView: View {
                 .lineLimit(1)
         } else if model.phase == .recording {
             Circle()
-                .fill(Murmur.accent)
+                .fill(Murmur.recording)
                 .frame(width: 8, height: 8)
             LevelBars(levels: model.levels)
         } else {
@@ -109,7 +109,7 @@ private struct LevelBars: View {
         HStack(alignment: .center, spacing: 3) {
             ForEach(levels.indices, id: \.self) { index in
                 Capsule()
-                    .fill(Murmur.gradient)
+                    .fill(Murmur.wave)
                     .frame(width: 3, height: 4 + CGFloat(levels[index]) * 18)
             }
         }
@@ -125,7 +125,7 @@ private struct ThinkingDots: View {
             HStack(spacing: 4) {
                 ForEach(0..<3) { index in
                     Circle()
-                        .fill(Murmur.gradient)
+                        .fill(Murmur.wave)
                         .frame(width: 6, height: 6)
                         .opacity(0.35 + 0.65 * max(0, sin(t * 6 - Double(index) * 0.8)))
                 }
@@ -134,11 +134,8 @@ private struct ThinkingDots: View {
     }
 }
 
-/// Placeholder brand palette until the branding pass.
+/// HUD palette: a black pill with white marks and a red recording dot.
 enum Murmur {
-    static let accent = Color(red: 0.62, green: 0.48, blue: 1.0)
-    static let gradient = LinearGradient(
-        colors: [Color(red: 0.45, green: 0.85, blue: 0.95), Color(red: 0.66, green: 0.47, blue: 1.0)],
-        startPoint: .bottom, endPoint: .top
-    )
+    static let recording = Color(red: 1.0, green: 0.23, blue: 0.19)
+    static let wave = Color.white
 }
