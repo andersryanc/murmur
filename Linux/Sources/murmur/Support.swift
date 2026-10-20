@@ -84,7 +84,14 @@ enum Shell {
         var stdinPipe: [Int32] = [-1, -1]
         var stdoutPipe: [Int32] = [-1, -1]
         if input != nil, pipe(&stdinPipe) != 0 { return Result(status: -1, output: "") }
-        if captureOutput, pipe(&stdoutPipe) != 0 { return Result(status: -1, output: "") }
+        if captureOutput, pipe(&stdoutPipe) != 0 {
+            for fd in stdinPipe { close(fd) }
+            return Result(status: -1, output: "")
+        }
+        // Close-on-exec, so a program started elsewhere at the same moment (pw-record through
+        // `Process`) can't inherit them and hold wl-copy's stdin open. dup2 clears the flag on
+        // the copies this program gets. (Swift's Glibc doesn't import pipe2.)
+        for fd in stdinPipe + stdoutPipe where fd >= 0 { _ = fcntl(fd, F_SETFD, FD_CLOEXEC) }
 
         var actions = posix_spawn_file_actions_t()
         posix_spawn_file_actions_init(&actions)

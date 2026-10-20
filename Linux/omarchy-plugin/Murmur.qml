@@ -17,7 +17,17 @@ Item {
   id: root
 
   readonly property int levelCount: 14
-  readonly property string socketPath: (Quickshell.env("XDG_RUNTIME_DIR") || ("/tmp/murmur-" + Quickshell.env("UID"))) + "/murmur/murmur.sock"
+  // Matches the daemon's Paths.socket. UID usually isn't exported, so the fallback asks `id -u`.
+  property string runtimeDir: Quickshell.env("XDG_RUNTIME_DIR") || ""
+  readonly property string socketPath: runtimeDir === "" ? "" : runtimeDir + "/murmur/murmur.sock"
+
+  Process {
+    running: root.runtimeDir === ""
+    command: ["id", "-u"]
+    stdout: StdioCollector {
+      onStreamFinished: root.runtimeDir = "/tmp/murmur-" + text.trim()
+    }
+  }
 
   property string phase: "ready"
   property string notice: ""
@@ -83,7 +93,7 @@ Item {
   Socket {
     id: socket
     path: root.socketPath
-    connected: true
+    connected: root.socketPath !== ""
 
     onConnectionStateChanged: {
       if (connected) {
@@ -105,7 +115,7 @@ Item {
   Timer {
     interval: 2000
     repeat: true
-    running: !socket.connected
+    running: !socket.connected && root.socketPath !== ""
     onTriggered: socket.connected = true
   }
 

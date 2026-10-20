@@ -11,7 +11,7 @@ murmur: push-to-talk dictation for Linux (Hyprland)
   murmur start | stop          Start or finish a dictation. Bind to a key's press and release.
   murmur toggle                Start, or finish if already recording. For a single key binding.
   murmur cancel                Throw away the current recording.
-  murmur status                ready, recording or processing.
+  murmur status                ready, recording, processing or cancelling.
   murmur transcribe <file.wav> [--context plain|chat|email|notes|code] [--no-cleanup]
                                Transcribe and clean up a WAV file, without the daemon.
   murmur bench [--model <ollama model>] [--runs 3]
