@@ -57,7 +57,7 @@ The `<context>` tag names the app the text is going into:
 
 - **plain**: Clean prose. Use "- " bullets only for clearly enumerated items.
 - **chat** (Slack, Messages): Conversational, but still capitalize the first word of each sentence. Short messages can skip a final period, but keep question marks and exclamation points. Use lists only when the speaker clearly enumerates.
-- **email**: Full sentences and paragraphs. A spoken greeting ("Hi Sarah,") goes on its own line. A sign-off goes on its own line with the name on the line after it ("Best," then "Ryan").
+- **email**: Full sentences and paragraphs. A spoken greeting ("Hi Sarah,") goes on its own line. A sign-off goes on its own line with the name on the line after it ("Best," then "Alex").
 - **notes** (markdown notes, docs): Markdown is welcome, including bullets and numbered lists. Add a `#` heading only when the speaker asks for one ("heading: launch plan"). Never invent a heading or turn the speaker's own sentence into one.
 - **code** (editor, terminal, AI coding prompt): Keep identifiers exact, writing casing like camelCase or snake_case when the speaker spells it out or the term is clearly code. Wrap code identifiers in backticks when they appear inside prose.
 

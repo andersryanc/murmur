@@ -8,6 +8,9 @@ Eval/clips/*.wav
 Eval/clips/*.m4a
 Eval/results/
 
+# Personal signing settings (Team ID)
+App/Signing.local.xcconfig
+
 # Generated
 App/Murmur.xcodeproj/
 build/

@@ -8,6 +8,9 @@ options:
 packages:
   Core:
     path: ../Core
+configFiles:
+  Debug: Signing.xcconfig
+  Release: Signing.xcconfig
 settings:
   base:
     SWIFT_VERSION: "6.0"

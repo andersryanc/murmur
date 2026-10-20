@@ -1,0 +1,8 @@
+// Code signing for Murmur. Your Apple Developer Team ID is personal, so it lives in
+// Signing.local.xcconfig (gitignored), which this file includes if it exists:
+//
+//   DEVELOPMENT_TEAM = ABCDE12345
+//
+// Find your Team ID in the OU field of your certificate:
+//   security find-certificate -c "Apple Development" -p | openssl x509 -noout -subject
+#include? "Signing.local.xcconfig"

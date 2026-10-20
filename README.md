@@ -23,6 +23,7 @@ Most of the quality comes from the cleanup pass. It fixes misheard words, drops 
 
 ```bash
 brew install xcodegen   # once
+echo 'DEVELOPMENT_TEAM = <your Team ID>' > App/Signing.local.xcconfig   # once; see App/Signing.xcconfig
 ./scripts/install.sh    # build Release, install to /Applications, launch
 ```
 
