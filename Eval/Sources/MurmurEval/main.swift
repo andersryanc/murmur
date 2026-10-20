@@ -1,4 +1,5 @@
 import Foundation
+import FluidAudio
 import MurmurCore
 
 let usage = """
@@ -18,6 +19,9 @@ USAGE
 
   swift run MurmurEval bench [--cleaner claude|apple|ollama:<model>] [--runs 3]
       Time a cleaner on built-in test dictations and show its output.
+
+  swift run MurmurEval vad <audio files…>
+      Show how much voiced audio each file has, and whether Murmur would transcribe it.
 
   swift run MurmurEval devices
       List audio input devices (* = system default).
@@ -229,6 +233,12 @@ do {
     case "run": try await run(args)
     case "clean": try await clean(args)
     case "bench": try await bench(args)
+    case "vad":
+        for path in args.positionals {
+            let samples = try AudioConverter().resampleAudioFile(URL(fileURLWithPath: path))
+            let voiced = VoiceActivity.voicedDuration(samples)
+            print("\(URL(fileURLWithPath: path).lastPathComponent): \(String(format: "%.2f", voiced))s voiced of \(String(format: "%.2f", Double(samples.count) / sttSampleRate))s → \(VoiceActivity.containsSpeech(samples) ? "speech" : "skip")")
+        }
     case "devices":
         let defaultUID = AudioDevices.defaultInput()?.uid
         for device in AudioDevices.inputs() {

@@ -66,7 +66,7 @@ public actor AppleCleaner: TextCleaner {
             to: cleanupUserMessage(transcript, context: context, vocabulary: vocabulary),
             options: GenerationOptions(sampling: .greedy)
         )
-        return response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        return CleanupPrompt.finalize(response.content, transcript: transcript)
     }
 
     private func makeSession() -> LanguageModelSession {
@@ -121,7 +121,7 @@ public struct OllamaCleaner: TextCleaner {
             response = try await chat(body)
         }
         let content = (response["message"] as? [String: Any])?["content"] as? String ?? ""
-        return Self.stripThinking(content).trimmingCharacters(in: .whitespacesAndNewlines)
+        return CleanupPrompt.finalize(Self.stripThinking(content), transcript: transcript)
     }
 
     private func chat(_ body: [String: Any]) async throws -> [String: Any] {

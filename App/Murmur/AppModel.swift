@@ -294,7 +294,9 @@ final class AppModel {
         endChime()
         let samples = (try? capture.stop()) ?? []
 
-        guard held >= Self.minimumHold, !samples.isEmpty else {
+        // Too short, or no voice in it (a tap of the key): speech models invent words from
+        // silence, so don't transcribe at all.
+        guard held >= Self.minimumHold, VoiceActivity.containsSpeech(samples) else {
             phase = .ready
             hud?.hide()
             return

@@ -58,11 +58,8 @@ public struct ClaudeCleaner: TextCleaner {
         case "max_tokens": throw MurmurError("Cleanup output hit max_tokens and was truncated")
         default: break
         }
-        return message.content
-            .filter { $0.type == "text" }
-            .compactMap(\.text)
-            .joined()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let output = message.content.filter { $0.type == "text" }.compactMap(\.text).joined()
+        return CleanupPrompt.finalize(output, transcript: transcript)
     }
 
     private struct MessageResponse: Decodable {

@@ -6,11 +6,15 @@ let package = Package(
     platforms: [.macOS(.v26)],
     dependencies: [
         .package(path: "../Core"),
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.17.7"),
     ],
     targets: [
         .executableTarget(
             name: "MurmurEval",
-            dependencies: [.product(name: "MurmurCore", package: "Core")],
+            dependencies: [
+                .product(name: "MurmurCore", package: "Core"),
+                .product(name: "FluidAudio", package: "FluidAudio"),
+            ],
             linkerSettings: [
                 // Embed an Info.plist so macOS shows the mic / speech permission prompts for this CLI.
                 .unsafeFlags(["-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist",
