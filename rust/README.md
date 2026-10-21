@@ -9,8 +9,10 @@ eval. The crates and the interfaces between them are described in [CONTRACTS.md]
 | `murmur-core` | Cleanup prompt (checked against the Swift copy by a test), Claude and Ollama cleaners, Dictionary, settings, sounds, voice activity, file locations, API key |
 | `murmur-stt` | Parakeet TDT 0.6B v3 (int8) on the CPU through sherpa-onnx; downloads the model on first use |
 | `murmur-audio` | Mic capture with cpal, resampled to 16 kHz; sound playback |
-| `murmur-platform` | Hotkey, paste, permissions, frontmost app. macOS is done; Windows and Linux are stubs |
-| `murmur` | The tray app: menu, recording pill, Dictionary window, dictation queue, launch at login |
+| `murmur-platform` | Hotkey, paste, permissions, frontmost app. macOS is done, Linux (Hyprland) is written but untested on hardware, Windows is a stub |
+| `murmur-control` | The Linux daemon's control socket and its line protocol (Unix only) |
+| `murmur-engine` | The dictation loop both front ends share: recording, the queue, transcribe → Dictionary → cleanup → paste, model loading, warm-ups, notices |
+| `murmur` | The binary. macOS: the tray app (menu, recording pill, Dictionary window, launch at login). Linux: the CLI and daemon |
 
 ## macOS
 
@@ -29,6 +31,16 @@ tail -f ~/Library/Logs/Murmur/murmur.log
 
 `cargo run --release -p murmur-stt --example transcribe -- clip.wav` times speech-to-text on a WAV file.
 
+## Linux
+
+The same `murmur` binary is a command-line tool and daemon for Hyprland, with an Omarchy pill
+plugin. Setup, Hyprland bindings and a testing checklist are in [linux/README.md](linux/README.md):
+
+```bash
+linux/install.sh             # release build to ~/.local/bin/murmur, plus the Omarchy plugin
+murmur doctor
+```
+
 ## Not yet
 
-Linux daemon and install (the platform layer, control socket and Omarchy plugin are in place), Windows, and the eval.
+Windows, and the eval.

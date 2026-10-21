@@ -1,4 +1,5 @@
-//! No pill window on this platform yet: Linux has its own QML pill, and Windows comes later.
+//! No pill window on this platform yet (Windows comes later; Linux has no tray app, and its pill
+//! is the Omarchy plugin).
 //! `Window::new` returns `None`, so `Pill` never draws and notices go to the system instead.
 
 use super::render::Image;

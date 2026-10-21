@@ -1,28 +1,28 @@
-//! The app's state and what it does with each event: the push-to-talk loop (key down → record →
-//! key up → queue), the menu's choices, and keeping the tray icon and menu current. A port of
-//! the Swift `AppModel`. Lives on the main thread; see `state.rs` for how other threads reach it.
+//! The app's state and what it does with each event: hotkey presses into the dictation engine,
+//! engine events into the pill, icon and menu, and the menu's choices. A port of the Swift
+//! `AppModel`, whose dictation loop now lives in `murmur-engine`. Lives on the main thread; see
+//! `state.rs` for how other threads reach it.
 
-use std::sync::mpsc::Sender;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use murmur_audio::Recorder;
 use murmur_core::{CleanupMode, Settings, SoundTheme};
+use murmur_engine::{Engine, ModelState, Press, SOUND_VOLUME, Timing};
 use murmur_platform::{HotkeyEvent, HotkeyMonitor};
 use tao::event::WindowEvent;
 use tao::window::WindowId;
 use tray_icon::menu::MenuId;
 use tray_icon::{TrayIcon, TrayIconBuilder};
 
-use crate::background;
-use crate::demo::{self, Demo};
-use crate::dictionary_window::{self, DictionaryWindow};
-use crate::icon;
-use crate::login_item;
-use crate::menu::{Action, BuiltMenu, MenuView, RECENT_SHOWN};
-use crate::pill::{self, Pill};
-use crate::pipeline::{self, Job, MINIMUM_HOLD, Recording};
-use crate::state::{AppEvent, Phase, Proxy, Target, Timing};
-use crate::system::{self, MicAccess};
+use crate::tray::background;
+use crate::tray::demo::{self, Demo};
+use crate::tray::dictionary_window::{self, DictionaryWindow};
+use crate::tray::icon;
+use crate::tray::login_item;
+use crate::tray::menu::{Action, BuiltMenu, MenuView, RECENT_SHOWN};
+use crate::tray::pill::{self, Pill};
+use crate::tray::state::{AppEvent, Proxy, Target};
+use crate::tray::system::{self, MicAccess};
 
 /// How often to re-check permissions, which are granted in System Settings while we run.
 pub const TICK: Duration = Duration::from_secs(1);
@@ -30,19 +30,12 @@ pub const TICK: Duration = Duration::from_secs(1);
 /// How many dictations to remember for "Recent".
 const HISTORY: usize = 10;
 
-/// Start/stop sounds play at this volume; they're cues, not alerts.
-const SOUND_VOLUME: f32 = 0.6;
-
 pub struct App {
     proxy: Proxy,
+    /// What the menu shows and saves. The engine gets a copy whenever it changes.
     settings: Settings,
-    phase: Phase,
-    /// The recording in progress while the key is held.
-    recording: Option<Recording>,
-    /// Dictations handed to the worker and not finished yet.
-    queued: usize,
-    /// The worker's queue; `None` until the speech model has loaded.
-    jobs: Option<Sender<Job>>,
+    /// Recording, the queue and the speech model.
+    engine: Engine,
     /// Pasted dictations, newest first.
     history: Vec<String>,
     timing: Option<Timing>,
@@ -117,21 +110,22 @@ impl App {
             }
         };
 
-        background::load_model(proxy.clone());
-        background::warm_up_audio(settings.microphone.clone());
+        // Engine events come from its threads and the audio thread; the loop handles them.
+        let engine = {
+            let proxy = Mutex::new(proxy.clone());
+            Engine::start(settings.clone(), Default::default(), move |event| {
+                if let Ok(proxy) = proxy.lock() {
+                    let _ = proxy.send_event(AppEvent::Engine(event));
+                }
+            })
+        };
         background::check_api_key(proxy.clone());
         background::refresh_local_models(proxy.clone());
         background::watch_devices(proxy.clone());
-        if settings.cleanup == CleanupMode::Ollama {
-            background::prepare_local_model(settings.ollama_model.clone());
-        }
 
         let mut app = Self {
             settings,
-            phase: Phase::Loading("Starting…".into()),
-            recording: None,
-            queued: 0,
-            jobs: None,
+            engine,
             history: Vec::new(),
             timing: None,
             accessibility,
@@ -180,12 +174,10 @@ impl App {
 
     /// An app that does nothing by itself, for the modes above to build on.
     fn idle(proxy: Proxy, status: &str) -> Self {
+        let settings = Settings::load();
         Self {
-            settings: Settings::load(),
-            phase: Phase::Loading(status.into()),
-            recording: None,
-            queued: 0,
-            jobs: None,
+            engine: Engine::idle(settings.clone(), status),
+            settings,
             history: Vec::new(),
             timing: None,
             accessibility: true,
@@ -237,40 +229,42 @@ impl App {
             AppEvent::Hotkey(HotkeyEvent::Released) => self.finish_recording(),
             AppEvent::Hotkey(HotkeyEvent::Cancelled) => self.cancel_recording(),
             AppEvent::Menu(id) => self.menu_clicked(&id, target),
-            AppEvent::Level(level) => {
-                // Readings can still be in flight just after the recording stops.
-                if self.recording.is_some() {
-                    self.pill.push_level(level);
-                }
-            }
-            AppEvent::Notice(message) => self.flash(&message),
-            AppEvent::Loading(message) => {
-                if matches!(self.phase, Phase::Loading(_)) {
-                    self.phase = Phase::Loading(message);
-                }
-            }
-            AppEvent::ModelReady(transcriber) => {
-                self.jobs = Some(pipeline::spawn_worker(transcriber, self.proxy.clone()));
-                self.phase = Phase::Ready;
-                log::info!("Ready: hold {} to dictate", self.settings.hotkey.label());
-            }
-            AppEvent::ModelFailed(message) => self.phase = Phase::Failed(message),
+            AppEvent::Engine(event) => self.engine_event(event),
             AppEvent::ApiKey(found) => self.has_api_key = Some(found),
             AppEvent::LocalModels(models) => self.local_models = models,
             AppEvent::Devices { devices, default } => {
                 self.devices = devices;
                 self.default_device = default;
             }
-            AppEvent::Dictated(text) => {
-                self.history.insert(0, text);
-                self.history.truncate(HISTORY);
-            }
-            AppEvent::Timing(timing) => self.timing = Some(timing),
-            AppEvent::JobDone => self.queued = self.queued.saturating_sub(1),
             AppEvent::Dictionary(message) => {
                 self.dictionary.message(&message);
                 self.quit_if_dictionary_closed();
             }
+        }
+    }
+
+    /// The engine's state (recording, queue, model) is read from it directly when drawing, so
+    /// most events only need to wake the loop; these are the ones that carry something to keep.
+    fn engine_event(&mut self, event: murmur_engine::Event) {
+        use murmur_engine::Event;
+        match event {
+            Event::Level(level) => {
+                // Readings can still be in flight just after the recording stops.
+                if self.engine.is_recording() {
+                    self.pill.push_level(level);
+                }
+            }
+            Event::Notice(message) => self.flash(&message),
+            Event::Model(ModelState::Ready) => {
+                log::info!("Ready: hold {} to dictate", self.settings.hotkey.label());
+            }
+            Event::ApiKey(found) => self.has_api_key = Some(found),
+            Event::Dictated(text) => {
+                self.history.insert(0, text);
+                self.history.truncate(HISTORY);
+            }
+            Event::Timing(timing) => self.timing = Some(timing),
+            Event::Model(_) | Event::Recording(_) | Event::Queue(_) => {}
         }
     }
 
@@ -322,38 +316,19 @@ impl App {
     // MARK: - Push to talk
 
     fn start_recording(&mut self) {
-        if self.phase != Phase::Ready || self.recording.is_some() {
+        if self.engine.model_state() != ModelState::Ready || self.engine.is_recording() {
             return;
         }
         if self.microphone_access == MicAccess::Denied {
             self.flash("Murmur needs microphone access");
             return;
         }
-        // Note the target first: it's whatever was in front when the key went down.
+        // Note the target first: it's whatever was in front when the key went down. The engine
+        // then blocks until audio is arriving, so nothing said after the start sound is lost.
+        // The Swift app also started capture on the main thread.
         let context = murmur_platform::target_context();
-        // Blocks until audio is arriving (tens of ms once warmed up), so nothing said right
-        // after the start sound is lost. The Swift app also started capture on the main thread.
-        // Levels arrive on the audio thread; the pill lives on this one.
-        let proxy = self.proxy.clone();
-        let on_level = move |level| {
-            let _ = proxy.send_event(AppEvent::Level(level));
-        };
-        let recorder = match Recorder::start(self.settings.microphone.as_deref(), on_level) {
-            Ok(recorder) => recorder,
-            Err(e) => {
-                log::error!("Couldn't start the microphone: {e:#}");
-                self.flash(&format!("Couldn't start the microphone: {e}"));
-                return;
-            }
-        };
-        self.pill.start_recording();
-        self.recording = Some(Recording {
-            recorder,
-            started: Instant::now(),
-            context,
-        });
-        if let Some(theme) = self.settings.sounds {
-            murmur_audio::play_wav(theme.start_sound(), SOUND_VOLUME);
+        if self.engine.press(context) == Press::Started {
+            self.pill.start_recording();
         }
     }
 
@@ -379,56 +354,26 @@ impl App {
                 }
             };
         }
-        if self.recording.is_some() {
+        if self.engine.is_recording() {
             Some(pill::Mode::Recording)
         } else if self.pill.has_notice(now) {
             Some(pill::Mode::Notice)
-        } else if self.queued > 0 {
+        } else if self.engine.queued() > 0 {
             Some(pill::Mode::Processing)
         } else {
             None
         }
     }
 
-    /// Recording just ended, whether it will be transcribed or thrown away.
-    fn end_chime(&self) {
-        if let Some(theme) = self.settings.sounds {
-            murmur_audio::play_wav(theme.stop_sound(), SOUND_VOLUME);
-        }
-    }
-
     /// Another key was typed while the hotkey was held (a shortcut, not dictation).
     fn cancel_recording(&mut self) {
-        let Some(recording) = self.recording.take() else { return };
-        self.end_chime();
-        drop(recording.recorder.stop());
-        log::info!("Recording cancelled by a chord");
+        if self.engine.cancel() {
+            log::info!("Recording cancelled by a chord");
+        }
     }
 
     fn finish_recording(&mut self) {
-        let Some(recording) = self.recording.take() else { return };
-        let held = recording.started.elapsed();
-        self.end_chime();
-        let samples = recording.recorder.stop();
-
-        // Too short, or no voice in it (a tap of the key): speech models invent words from
-        // silence, so don't transcribe at all.
-        if held < MINIMUM_HOLD || !murmur_core::voice::contains_speech(&samples) {
-            log::info!("Skipped a {} ms recording with no speech", held.as_millis());
-            return;
-        }
-        let Some(jobs) = &self.jobs else { return };
-        let job = Job {
-            samples,
-            context: recording.context,
-            cleanup: self.settings.cleanup,
-            ollama_model: self.settings.ollama_model.clone(),
-        };
-        if jobs.send(job).is_ok() {
-            self.queued += 1;
-        } else {
-            log::error!("The dictation thread has stopped");
-        }
+        self.engine.release();
     }
 
     // MARK: - Menu
@@ -458,7 +403,7 @@ impl App {
                 match mode {
                     CleanupMode::Ollama => {
                         background::refresh_local_models(self.proxy.clone());
-                        background::prepare_local_model(self.settings.ollama_model.clone());
+                        murmur_engine::prepare_local_model(self.settings.ollama_model.clone());
                     }
                     CleanupMode::Claude => background::check_api_key(self.proxy.clone()),
                     CleanupMode::Off => {}
@@ -467,7 +412,7 @@ impl App {
             }
             Action::LocalModel(name) => {
                 self.settings.ollama_model = name.clone();
-                background::prepare_local_model(name);
+                murmur_engine::prepare_local_model(name);
                 self.save();
             }
             Action::RefreshLocalModels => background::refresh_local_models(self.proxy.clone()),
@@ -509,7 +454,9 @@ impl App {
         self.menu = None;
     }
 
-    fn save(&self) {
+    /// Hands the new settings to the engine (they apply from the next recording) and saves them.
+    fn save(&mut self) {
+        self.engine.set_settings(self.settings.clone());
         if let Err(e) = self.settings.save() {
             log::error!("Couldn't save settings: {e:#}");
         }
@@ -535,18 +482,19 @@ impl App {
     }
 
     fn status_text(&self) -> String {
-        if self.recording.is_some() {
+        if self.engine.is_recording() {
             return "Listening…".into();
         }
-        if self.queued > 1 {
-            return format!("Transcribing… ({} queued)", self.queued - 1);
+        let queued = self.engine.queued();
+        if queued > 1 {
+            return format!("Transcribing… ({} queued)", queued - 1);
         }
-        if self.queued == 1 {
+        if queued == 1 {
             return "Transcribing…".into();
         }
-        match &self.phase {
-            Phase::Loading(message) | Phase::Failed(message) => message.clone(),
-            Phase::Ready => format!("Hold {} to dictate", self.settings.hotkey.label()),
+        match self.engine.model_state() {
+            ModelState::Loading(message) | ModelState::Failed(message) => message,
+            ModelState::Ready => format!("Hold {} to dictate", self.settings.hotkey.label()),
         }
     }
 
@@ -559,7 +507,7 @@ impl App {
 
         let Some(tray) = &self.tray else { return };
 
-        let recording = self.recording.is_some();
+        let recording = self.engine.is_recording();
         if recording != self.shows_recording {
             let icon = if recording { icon::recording() } else { icon::idle() };
             icon::set(tray, icon);
@@ -588,7 +536,6 @@ impl App {
     pub fn shut_down(&mut self) {
         // Stop listening first so no key event arrives mid-teardown.
         self.hotkeys = None;
-        self.recording = None;
         self.tray = None;
     }
 }

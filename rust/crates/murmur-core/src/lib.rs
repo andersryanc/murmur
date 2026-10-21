@@ -6,6 +6,7 @@
 //! Network calls are blocking (no async runtime): the app runs each dictation on a worker thread.
 
 pub mod api_key;
+pub mod bench;
 pub mod cleaner;
 pub mod context;
 pub mod dictionary;

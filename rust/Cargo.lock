@@ -1819,9 +1819,12 @@ dependencies = [
  "ab_glyph",
  "anyhow",
  "arboard",
+ "libc",
  "log",
  "murmur-audio",
+ "murmur-control",
  "murmur-core",
+ "murmur-engine",
  "murmur-platform",
  "murmur-stt",
  "objc2",
@@ -1844,6 +1847,7 @@ dependencies = [
 name = "murmur-audio"
 version = "0.1.0"
 dependencies = [
+ "alsa",
  "anyhow",
  "cpal",
  "hound",
@@ -1874,6 +1878,18 @@ dependencies = [
  "serde",
  "serde_json",
  "ureq 3.5.0",
+]
+
+[[package]]
+name = "murmur-engine"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "log",
+ "murmur-audio",
+ "murmur-core",
+ "murmur-platform",
+ "murmur-stt",
 ]
 
 [[package]]

@@ -4,7 +4,7 @@
 //!
 //! The drawing (`render.rs`) is plain Rust shared by every platform; only the window that shows
 //! it is OS-specific. The window never takes focus: if it did, the paste would land in the
-//! wrong place. Where there's no window yet (Windows; Linux has its own QML pill), [`Pill`]
+//! wrong place. Where there's no window yet (Windows), [`Pill`]
 //! does nothing and the app falls back to system notifications for notices.
 //!
 //! It animates only while visible, at about 30 fps, so the idle app does no work for it.

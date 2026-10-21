@@ -59,9 +59,9 @@ pub enum CleanupMode {
     Off,
 }
 
-/// Everything the user picks in the menu, stored as `settings.json` in `paths::data_dir()`.
-/// Every field is optional in the file, and one that can't be read falls back to its default
-/// without losing the others.
+/// Everything the user picks in the menu, stored as `settings.json` in `paths::data_dir()`
+/// (`config.json` on Linux; see [`Settings::path`]). Every field is optional in the file, and
+/// one that can't be read falls back to its default without losing the others.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
@@ -92,8 +92,18 @@ fn sounds_to_str<S: serde::Serializer>(sounds: &Option<SoundTheme>, serializer: 
 }
 
 impl Settings {
+    /// `settings.json` in `paths::data_dir()`. On Linux it's `config.json` there instead: Linux
+    /// has no menu, so the file is edited by hand, and the Swift Linux build already wrote that
+    /// file with these same keys (plus `model` and `threads`, which the Linux front end reads
+    /// itself). Reading it in place keeps one file and its documentation, rather than a second
+    /// copy that drifts.
     pub fn path() -> PathBuf {
-        crate::paths::data_dir().join("settings.json")
+        let name = if cfg!(target_os = "linux") {
+            "config.json"
+        } else {
+            "settings.json"
+        };
+        crate::paths::data_dir().join(name)
     }
 
     pub fn load() -> Self {

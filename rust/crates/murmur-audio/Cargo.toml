@@ -15,3 +15,8 @@ cpal = "0.18.2"
 rubato = "5.0.1"
 # Decoding the in-memory start/stop sounds.
 hound = "3.5.1"
+
+# Opening a PipeWire microphone by node name through pipewire-alsa (see src/pipewire.rs). The
+# same version cpal uses for its ALSA host.
+[target.'cfg(target_os = "linux")'.dependencies]
+alsa = "0.11.0"

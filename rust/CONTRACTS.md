@@ -71,7 +71,8 @@ pub fn data_dir() -> PathBuf;    // macOS ~/Library/Application Support/Murmur, 
 pub fn models_dir() -> PathBuf;  // macOS/Windows data_dir()/models, Linux $XDG_DATA_HOME/murmur/models
 pub fn log_path() -> PathBuf;
 
-// settings.rs  (data_dir()/settings.json, every field optional)
+// settings.rs  (data_dir()/settings.json, every field optional; on Linux data_dir()/config.json,
+//               the hand-edited file the Swift Linux build already wrote, read in place)
 pub enum Hotkey { Fn, RightOption, RightCommand, RightAlt, RightCtrl }  // serde camelCase; label()
 pub enum CleanupMode { Claude, Ollama, Off }
 pub struct Settings {
@@ -81,7 +82,10 @@ pub struct Settings {
     pub microphone: Option<String>,      // device name; None = system default
     pub sounds: Option<SoundTheme>,      // Some(Wood); None = off
 }
-impl Settings { pub fn load() -> Self; pub fn save(&self) -> anyhow::Result<()>; }
+impl Settings { pub fn path() -> PathBuf; pub fn load() -> Self; pub fn save(&self) -> anyhow::Result<()>; }
+
+// bench.rs
+pub const CASES: [(TargetContext, &str); 5];   // MurmurKit's benchCases, for `murmur bench`
 ```
 
 ## murmur-stt
@@ -107,12 +111,14 @@ pub fn default_input_device() -> Option<String>;
 pub struct Recorder;
 impl Recorder {
     /// device None or not connected → system default. on_level gets 0...1 about every 50 ms,
-    /// from the audio thread.
+    /// from the audio thread. On Linux a name that isn't an ALSA device is a PipeWire node
+    /// name, opened as ALSA `pipewire:NODE="<name>"` (pipewire-alsa); failing that, the default.
     pub fn start(device: Option<&str>, on_level: impl Fn(f32) + Send + 'static) -> anyhow::Result<Self>;
     /// Stops and returns everything recorded, resampled to 16 kHz mono.
     pub fn stop(self) -> Vec<f32>;
 }
 pub fn play_wav(wav: Vec<u8>, volume: f32);           // fire and forget
+pub fn load_wav(path: &Path) -> anyhow::Result<Vec<f32>>;  // any WAV → 16 kHz mono
 ```
 
 ## murmur-platform (one module per OS behind cfg; same API everywhere)
@@ -144,6 +150,10 @@ Plain text, one line each way. The plugin parses it, so the wire format doesn't 
 pub fn socket_path() -> PathBuf;   // $XDG_RUNTIME_DIR/murmur/murmur.sock, else /tmp/murmur-<uid>/murmur/murmur.sock
                                    // (the same path the plugin computes)
 pub enum Command { Start, Stop, Toggle, Cancel, Status }   // "start", …; ALL, as_str(), parse(), Display
+// The daemon's replies (free text, for people): start → "recording" | "already recording" |
+// "error: …"; stop → "processing" | "queued" | "no speech" | "not recording"; cancel →
+// "cancelled" | "not recording"; status → "loading" | "ready" | "recording" | "processing" |
+// "error: …" (the model failed to load).
 pub const WATCH: &str = "watch";   // handled by the server, never reaches the handler
 pub enum Phase { Ready, Recording, Processing }            // as_str(), parse(), Display
 pub enum Event {                   // Display gives the line (no newline); parse() reads one
@@ -175,6 +185,72 @@ impl Server {
 }
 ```
 
-## murmur (the app)
+## murmur-engine (the dictation loop every front end shares)
 
-Tray menu, recording pill, the dictation queue, settings. Uses only the APIs above.
+Recording, the queue and its worker, model loading, the warm-ups and notices. Owned by one
+thread, which makes every call; its own threads report through `on_event`, which must return
+quickly and never call back into the engine.
+
+```rust
+pub const MINIMUM_HOLD: Duration;   // 300 ms: shorter recordings are taps, never transcribed
+pub const SOUND_VOLUME: f32;        // 0.6, the start/stop sounds (and the menu's preview)
+
+pub struct Options {                // where the speech model comes from; Default = the Mac's
+    pub model_dir: Option<PathBuf>, // never downloaded into
+    pub threads: Option<usize>,     // None → murmur_stt::default_threads()
+}
+pub enum ModelState { Loading(String), Ready, Failed(String) }   // Loading carries progress text
+pub enum Event {
+    Model(ModelState),      // including download progress, ~2/s
+    Recording(bool),        // started, or ended (queued, skipped or cancelled)
+    Queue(usize),           // waiting to paste, incl. the one processing; sent in order
+    Level(f32),             // 0...1, ~every 50 ms while recording (a few may precede Recording(true))
+    Notice(String),         // "Cleanup failed, pasted raw text", "Couldn't start the microphone: …"
+    Dictated(String),       // pasted (or left on the clipboard)
+    Timing(Timing),
+    ApiKey(bool),           // whether a key was found when a dictation needed one
+}
+pub enum Press { Started, AlreadyRecording, NotReady, Failed(String) }  // Failed also sent as a Notice
+pub enum Release { Queued(usize), NoSpeech, NotRecording }             // Queued(n): n incl. this one
+pub struct Timing { pub speech: Duration, pub cleanup: Option<(Duration, String)> }  // summary()
+
+pub struct Engine;                  // Send
+impl Engine {
+    /// Loads (downloads) the model, warms up the mic, and prepares Ollama if that's the cleanup,
+    /// each on its own thread; returns at once.
+    pub fn start(settings: Settings, options: Options, on_event: impl Fn(Event) + Send + Sync + 'static) -> Self;
+    pub fn idle(settings: Settings, status: &str) -> Self;   // never ready (demo modes, tests)
+    pub fn settings(&self) -> &Settings;
+    pub fn set_settings(&mut self, settings: Settings);     // from the next recording on
+    pub fn model_state(&self) -> ModelState;
+    pub fn is_recording(&self) -> bool;
+    pub fn queued(&self) -> usize;
+    /// Blocks until audio is arriving; plays the start sound. `context` = what's in front now.
+    pub fn press(&mut self, context: TargetContext) -> Press;
+    pub fn release(&mut self) -> Release;   // stop sound; queues unless it was a tap
+    pub fn cancel(&mut self) -> bool;       // stop sound; throws the recording away
+}
+
+pub fn default_model_dir(options: &Options) -> PathBuf;
+/// Blocking: download if need be (default folder only), load, warm up.
+pub fn load_model(options: &Options, progress: impl FnMut(String)) -> anyhow::Result<Transcriber>;
+pub fn prepare_local_model(model: String);   // own thread; failure → murmur_platform::notify
+pub fn load_dictionary() -> Dictionary;      // re-read per dictation; unreadable → empty
+pub struct MissingApiKey;                    // std Error
+pub fn cleaner(mode: CleanupMode, ollama_model: &str, vocabulary: Vec<String>)
+    -> Result<Option<Box<dyn TextCleaner>>, MissingApiKey>;   // None = cleanup off
+```
+
+## murmur (the binary)
+
+`main` picks the front end by OS; both use only the APIs above.
+
+- **macOS (and later Windows): the tray app** (`src/tray`). The hotkey's Pressed, Released and
+  Cancelled become `press`, `release` and `cancel`; menu choices become `set_settings` (and
+  `prepare_local_model`). Engine events arrive through the tao event loop; the pill, icon and
+  status line read `is_recording`, `queued` and `model_state` when they redraw.
+- **Linux: the CLI and daemon** (`src/linux`). The daemon's control-socket handler owns the
+  engine and turns `start`/`stop`/`toggle`/`cancel`/`status` into its calls. Engine events go to
+  the main thread, which broadcasts `queue`, `state`, `level` and `notice` lines to watchers;
+  a notice nobody watched goes to `notify()`. `config.json`'s `model` and `threads` become
+  `Options`.

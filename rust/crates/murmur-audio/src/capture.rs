@@ -77,23 +77,62 @@ impl Recorder {
     /// Opens `device` (or the default when it's `None` or not connected) and starts recording.
     /// Returns once audio is actually arriving, so anything said after this returns is captured.
     /// `on_level` gets a 0...1 meter value about every 50 ms, called on the audio thread.
+    ///
+    /// On Linux a name that isn't one of cpal's (ALSA) devices is taken to be a PipeWire node
+    /// name, as the Swift build's `pw-record --target` used; see `pipewire.rs`.
     pub fn start(device: Option<&str>, on_level: impl Fn(f32) + Send + 'static) -> Result<Self> {
+        #[cfg(target_os = "linux")]
+        if let Some(node) = device.filter(|name| crate::pipewire::is_node_name(name)) {
+            match crate::pipewire::open(node) {
+                Ok(pcm) => {
+                    return Self::spawn(
+                        crate::pipewire::RATE,
+                        1,
+                        Box::new(on_level),
+                        move |sink, ready, stop| crate::pipewire::run(pcm, sink, ready, stop),
+                    );
+                }
+                Err(e) => {
+                    log::info!("microphone {node:?} unavailable ({e:#}); using the default");
+                    return Self::start_cpal(None, on_level);
+                }
+            }
+        }
+        Self::start_cpal(device, on_level)
+    }
+
+    fn start_cpal(device: Option<&str>, on_level: impl Fn(f32) + Send + 'static) -> Result<Self> {
         let device = find_device(device)?;
         let config = device
             .default_input_config()
             .context("reading the microphone's format")?;
         let format = config.sample_format();
         let config: StreamConfig = config.config();
-        let rate = config.sample_rate;
-        let samples = Arc::new(Mutex::new(Vec::with_capacity(rate as usize * 30)));
+        Self::spawn(
+            config.sample_rate,
+            config.channels as usize,
+            Box::new(on_level),
+            move |sink, ready, stop| run_stream(device, config, format, sink, ready, stop),
+        )
+    }
 
+    /// Runs `capture` on its own thread, which feeds the [`Sink`] at `rate` Hz with `channels`
+    /// interleaved channels, reports on `ready` once the device is open (or why it couldn't be),
+    /// and stops when `stop` receives or disconnects. Returns once audio is arriving.
+    pub(crate) fn spawn(
+        rate: u32,
+        channels: usize,
+        on_level: Box<dyn Fn(f32) + Send>,
+        capture: impl FnOnce(Sink, Sender<Result<()>>, Receiver<()>) + Send + 'static,
+    ) -> Result<Self> {
+        let samples = Arc::new(Mutex::new(Vec::with_capacity(rate as usize * 30)));
         let (ready_tx, ready_rx) = mpsc::channel::<Result<()>>();
         let (first_tx, first_rx) = mpsc::sync_channel::<()>(1);
         let (stop_tx, stop_rx) = mpsc::channel::<()>();
         let sink = Sink {
             samples: samples.clone(),
-            channels: config.channels as usize,
-            on_level: Box::new(on_level),
+            channels,
+            on_level,
             meter: Vec::new(),
             meter_len: (rate / 20) as usize,
             first: Some(first_tx),
@@ -101,7 +140,7 @@ impl Recorder {
 
         let thread = std::thread::Builder::new()
             .name("murmur-capture".into())
-            .spawn(move || run_stream(device, config, format, sink, ready_tx, stop_rx))
+            .spawn(move || capture(sink, ready_tx, stop_rx))
             .context("starting the capture thread")?;
 
         // Built before waiting so an early return still stops and joins the thread via Drop.
@@ -211,7 +250,7 @@ where
 }
 
 /// Everything the audio callback needs, moved onto the audio thread.
-struct Sink {
+pub(crate) struct Sink {
     samples: Arc<Mutex<Vec<f32>>>,
     channels: usize,
     on_level: Box<dyn Fn(f32) + Send>,
@@ -224,7 +263,7 @@ struct Sink {
 }
 
 impl Sink {
-    fn push(&mut self, interleaved: &[f32]) {
+    pub(crate) fn push(&mut self, interleaved: &[f32]) {
         let mono = mix_to_mono(interleaved, self.channels);
         if let Some(first) = self.first.take() {
             let _ = first.try_send(());

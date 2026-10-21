@@ -5,7 +5,7 @@
 
 use std::time::{Duration, Instant};
 
-use crate::pill::{Mode, Pill};
+use crate::tray::pill::{Mode, Pill};
 
 const RECORDING_UNTIL: Duration = Duration::from_secs(4);
 const PROCESSING_UNTIL: Duration = Duration::from_secs(8);

@@ -4,8 +4,8 @@
 //! On macOS and Windows it's a small web page (`dictionary.html`) in a system web view, so one
 //! page serves both. The page does all the editing; the Rust side only reads, writes and watches
 //! `dictionary.json`, which stays the source of truth: the dictation pipeline re-reads it every
-//! time, and the user can still edit it by hand. Linux opens the file in a text editor instead,
-//! so the app doesn't need WebKitGTK.
+//! time, and the user can still edit it by hand. (Linux has no tray app; there the Dictionary is
+//! the JSON file, edited by hand.)
 //!
 //! `MURMUR_OPEN_DICTIONARY=1` runs just this window (no hotkey tap, tray or speech model) and
 //! quits when it closes, for working on it beside a real Murmur. `MURMUR_DICTIONARY=<file>` edits
@@ -16,15 +16,8 @@ use std::path::PathBuf;
 
 use murmur_core::Dictionary;
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
 mod webview;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
 pub use webview::DictionaryWindow;
-
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
-mod editor;
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
-pub use editor::DictionaryWindow;
 
 /// Whether to run only the Dictionary window (see the module docs).
 pub fn requested() -> bool {

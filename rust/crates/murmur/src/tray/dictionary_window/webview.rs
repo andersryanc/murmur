@@ -16,8 +16,8 @@ use tao::event::WindowEvent;
 use tao::window::{Window, WindowBuilder, WindowId};
 use wry::{WebView, WebViewBuilder};
 
-use crate::state::{AppEvent, Proxy, Target};
-use crate::system;
+use crate::tray::state::{AppEvent, Proxy, Target};
+use crate::tray::system;
 
 const PAGE: &str = include_str!("dictionary.html");
 

@@ -3,8 +3,8 @@
 //! `waveform` and `waveform.circle.fill` symbols).
 //!
 //! On macOS the icon is a template image: only its alpha matters, and the menu bar tints it to
-//! match light or dark mode. Windows and Linux show the colours as drawn, so there it's white,
-//! which reads on their usual dark taskbars and panels.
+//! match light or dark mode. Windows shows the colours as drawn, so there it's white,
+//! which reads on its usual dark taskbar.
 
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 

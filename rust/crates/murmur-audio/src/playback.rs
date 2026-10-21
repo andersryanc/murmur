@@ -65,7 +65,7 @@ fn play_blocking(wav: &[u8], volume: f32) -> Result<()> {
 }
 
 /// Decodes a WAV (any channel count, integer or float) to mono `f32`.
-fn decode(wav: &[u8]) -> Result<(Vec<f32>, u32)> {
+pub(crate) fn decode(wav: &[u8]) -> Result<(Vec<f32>, u32)> {
     let reader = hound::WavReader::new(Cursor::new(wav)).context("reading WAV")?;
     let spec = reader.spec();
     let interleaved: Vec<f32> = match spec.sample_format {
