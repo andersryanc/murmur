@@ -3,6 +3,9 @@ import SwiftUI
 
 /// The small pill near the bottom of the screen that shows Murmur listening and working.
 ///
+/// Each dictation waiting to paste gets its own pill, oldest on the left: the first is being
+/// processed, the rest are queued. A new recording's pill sits to their right.
+///
 /// It's a non-activating panel that ignores the mouse, so it never takes focus away from the
 /// app you're dictating into. If it did, the paste would land in the wrong place.
 final class HUDController {
@@ -11,7 +14,7 @@ final class HUDController {
 
     init(model: AppModel) {
         panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 72),
+            contentRect: NSRect(x: 0, y: 0, width: 900, height: 72),
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: true
@@ -64,6 +67,50 @@ struct HUDView: View {
 
     var body: some View {
         HStack(spacing: 10) {
+            ForEach(model.queue, id: \.self) { id in
+                Pill {
+                    if id == model.queue.first {
+                        ThinkingDots()
+                        HUDText("Murmuring…", opacity: 0.9)
+                    } else {
+                        ThinkingDots(animating: false)
+                        HUDText("Queued", opacity: 0.6)
+                    }
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            }
+            if model.phase == .recording {
+                Pill {
+                    Circle()
+                        .fill(Murmur.recording)
+                        .frame(width: 8, height: 8)
+                    LevelBars(levels: model.levels)
+                }
+                .transition(.opacity)
+            } else if let notice = model.notice {
+                Pill {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(.orange)
+                    Text(notice)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                }
+                .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.spring(duration: 0.25), value: model.phase)
+        .animation(.spring(duration: 0.25), value: model.queue)
+    }
+}
+
+/// A black capsule around one item in the HUD.
+private struct Pill<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        HStack(spacing: 10) {
             content
         }
         .padding(.horizontal, 16)
@@ -74,30 +121,22 @@ struct HUDView: View {
                 .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 0.5))
                 .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.spring(duration: 0.25), value: model.phase)
+    }
+}
+
+private struct HUDText: View {
+    let text: String
+    let opacity: Double
+
+    init(_ text: String, opacity: Double) {
+        self.text = text
+        self.opacity = opacity
     }
 
-    @ViewBuilder
-    private var content: some View {
-        if let notice = model.notice, model.phase != .recording {
-            Image(systemName: "exclamationmark.circle.fill")
-                .foregroundStyle(.orange)
-            Text(notice)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-        } else if model.phase == .recording {
-            Circle()
-                .fill(Murmur.recording)
-                .frame(width: 8, height: 8)
-            LevelBars(levels: model.levels)
-        } else {
-            ThinkingDots()
-            Text("Murmuring…")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white.opacity(0.9))
-        }
+    var body: some View {
+        Text(text)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(.white.opacity(opacity))
     }
 }
 
@@ -118,16 +157,19 @@ private struct LevelBars: View {
     }
 }
 
+/// Pulsing while a dictation is processed; dim and still while it's queued.
 private struct ThinkingDots: View {
+    var animating = true
+
     var body: some View {
-        TimelineView(.animation) { timeline in
+        TimelineView(.animation(paused: !animating)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             HStack(spacing: 4) {
                 ForEach(0..<3) { index in
                     Circle()
                         .fill(Murmur.wave)
                         .frame(width: 6, height: 6)
-                        .opacity(0.35 + 0.65 * max(0, sin(t * 6 - Double(index) * 0.8)))
+                        .opacity(animating ? 0.35 + 0.65 * max(0, sin(t * 6 - Double(index) * 0.8)) : 0.35)
                 }
             }
         }

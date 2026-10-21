@@ -51,6 +51,9 @@ struct Timing {
 }
 
 /// Runs the whole push-to-talk loop: key down → record → key up → transcribe → clean → paste.
+///
+/// A new recording can start while earlier ones are still being processed. Finished recordings
+/// wait in a queue and are processed one at a time, so they paste in the order they were spoken.
 @Observable
 final class AppModel {
     enum Phase: Equatable {
@@ -61,7 +64,11 @@ final class AppModel {
         case failed(String)
     }
 
+    /// `.recording` while the key is held, even with dictations still queued; `.processing`
+    /// while any are queued otherwise.
     private(set) var phase: Phase = .loading("Starting…")
+    /// One entry per dictation waiting to paste, oldest first. The first is being processed.
+    private(set) var queue: [UUID] = []
     /// Recent loudness values for the HUD's level meter, newest last.
     private(set) var levels: [Float] = Array(repeating: 0, count: AppModel.levelCount)
     private(set) var history: [Dictation] = []
@@ -136,6 +143,8 @@ final class AppModel {
     private var recordingStarted: Date?
     private var targetApp: NSRunningApplication?
     private var chordCancelled = false
+    /// The last dictation in the queue; the next one waits for it.
+    private var lastInQueue: Task<Void, Never>?
     private let sounds = SoundEffects()
     /// Your words and replacements, edited in the Dictionary window.
     let dictionary = DictionaryStore()
@@ -179,7 +188,7 @@ final class AppModel {
         case .loading(let message): message
         case .ready: "Hold \(hotkey.shortLabel) to dictate"
         case .recording: "Listening…"
-        case .processing: "Transcribing…"
+        case .processing: queue.count > 1 ? "Transcribing… (\(queue.count - 1) queued)" : "Transcribing…"
         case .failed(let message): message
         }
     }
@@ -255,7 +264,7 @@ final class AppModel {
     // MARK: - Push to talk
 
     private func startRecording() {
-        guard phase == .ready else { return }
+        guard phase == .ready || phase == .processing else { return }
         guard microphoneGranted else {
             flash("Murmur needs microphone access")
             return
@@ -286,8 +295,7 @@ final class AppModel {
         chordCancelled = true
         endChime()
         _ = try? capture.stop()
-        phase = .ready
-        hud?.hide()
+        settle()
     }
 
     private func finishRecording() {
@@ -299,23 +307,35 @@ final class AppModel {
         // Too short, or no voice in it (a tap of the key): speech models invent words from
         // silence, so don't transcribe at all.
         guard held >= Self.minimumHold, VoiceActivity.containsSpeech(samples) else {
-            phase = .ready
-            hud?.hide()
+            settle()
             return
         }
 
+        let id = UUID()
+        queue.append(id)
         phase = .processing
         let context = TargetContext(bundleID: targetApp?.bundleIdentifier)
         let appName = targetApp?.localizedName
-        Task { await process(samples, context: context, appName: appName) }
+        let previous = lastInQueue
+        lastInQueue = Task {
+            await previous?.value
+            await process(samples, context: context, appName: appName)
+            queue.removeAll { $0 == id }
+            if phase == .processing { settle() }
+        }
+    }
+
+    /// After a recording ends or a dictation pastes: back to ready once nothing is left.
+    private func settle() {
+        guard queue.isEmpty else {
+            phase = .processing
+            return
+        }
+        phase = .ready
+        hud?.hide(after: notice == nil ? 0 : 2.5)
     }
 
     private func process(_ samples: [Float], context: TargetContext, appName: String?) async {
-        defer {
-            if phase == .processing { phase = .ready }
-            hud?.hide(after: notice == nil ? 0 : 2.5)
-        }
-
         let clock = ContinuousClock()
         let raw: String
         let speechStart = clock.now
@@ -386,7 +406,8 @@ final class AppModel {
     private func flash(_ message: String) {
         notice = message
         hud?.show()
-        hud?.hide(after: 2.5)
+        // While dictations are queued, the HUD hides once they're done instead.
+        if queue.isEmpty && phase != .recording { hud?.hide(after: 2.5) }
     }
 
     func copy(_ dictation: Dictation) {
