@@ -2,6 +2,10 @@
 
 Push-to-talk dictation for macOS, with a Linux (Hyprland) version in [`Linux/`](Linux). Hold a key, speak, and polished text appears wherever your cursor is.
 
+<p align="center">
+  <img src="docs/screenshots/hud.webp" width="423" alt="The recording pill: a red dot and a live microphone level meter at the bottom of the screen">
+</p>
+
 The pipeline:
 
 ```
@@ -31,6 +35,12 @@ echo 'DEVELOPMENT_TEAM = <your Team ID>' > App/Signing.local.xcconfig   # once; 
 On first launch, allow **Microphone** and turn on Murmur under **System Settings › Privacy & Security › Accessibility**. Accessibility lets Murmur see the push-to-talk key and paste at your cursor. Both permissions persist across rebuilds because the app is always signed with the same certificate.
 
 Hold **fn** (changeable in the menu), speak, and release. The text is pasted wherever your cursor is.
+
+<p align="center">
+  <img src="docs/screenshots/menu.webp" width="320" alt="The menu-bar menu: last dictation timings, recent dictations to copy, and settings for the key, cleanup, model, microphone and sounds">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/dictionary.png" width="420" alt="The Dictionary window's Replacements tab, mapping spoken phrases such as &quot;cube control&quot; to kubectl">
+</p>
 
 - **fn key:** set **System Settings › Keyboard › "Press 🌐 key to"** to **Do Nothing**, or macOS will open the emoji picker or its own dictation. You can pick Right ⌥ or Right ⌘ instead.
 - **Chords are ignored:** typing another key while holding the hotkey (e.g. ⌥← to jump words) cancels the recording.
