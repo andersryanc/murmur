@@ -1,16 +1,18 @@
 //! Murmur: hold a key, speak, and cleaned-up text is pasted at the cursor.
 //!
-//! A tray app (menu bar on macOS, notification area on Windows, AppIndicator on Linux) with no
-//! windows. The event loop runs on the main thread, as AppKit requires; the hotkey tap, model
+//! A tray app (menu bar on macOS, notification area on Windows, AppIndicator on Linux) whose
+//! only window is the recording pill, which never takes focus. The event loop runs on the main thread, as AppKit requires; the hotkey tap, model
 //! loading and the dictation queue run on their own threads and report back through it.
 
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod app;
 mod background;
+mod demo;
 mod icon;
 mod logging;
 mod menu;
+mod pill;
 mod pipeline;
 mod state;
 mod system;
@@ -39,6 +41,9 @@ fn main() {
         use tao::platform::macos::{ActivationPolicy, EventLoopExtMacOS};
         // A menu-bar app: no Dock icon and no app menu (LSUIElement does the same when bundled).
         event_loop.set_activation_policy(ActivationPolicy::Accessory);
+        // tao activates the app at launch by default, taking focus from whatever is in front.
+        // Murmur has nothing to focus, and should never take it from the app being dictated into.
+        event_loop.set_activate_ignoring_other_apps(false);
     }
 
     // Menu clicks arrive on muda's callback; forward them so the loop wakes for each one.
@@ -57,7 +62,7 @@ fn main() {
             Event::NewEvents(StartCause::Init) => app = Some(App::start(proxy.clone())),
             Event::NewEvents(StartCause::ResumeTimeReached { .. }) => {
                 if let Some(app) = &mut app {
-                    app.tick();
+                    app.timer_fired();
                 }
             }
             Event::UserEvent(event) => {
@@ -79,8 +84,9 @@ fn main() {
             *control_flow = ControlFlow::Exit;
             return;
         }
-        // Cheap when nothing changed, and there are no windows to flood the loop with events.
+        // Cheap when nothing changed. The pill's only window ignores the mouse, so nothing
+        // floods the loop with events.
         app.refresh();
-        *control_flow = ControlFlow::WaitUntil(app.next_tick);
+        *control_flow = ControlFlow::WaitUntil(app.wake_at());
     });
 }

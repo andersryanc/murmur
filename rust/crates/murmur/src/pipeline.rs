@@ -58,7 +58,7 @@ fn process(transcriber: &Transcriber, job: Job, proxy: &Proxy) {
         Ok(raw) => raw,
         Err(e) => {
             log::error!("Transcription failed: {e:#}");
-            murmur_platform::notify("Transcription failed");
+            notice(proxy, "Transcription failed");
             return;
         }
     };
@@ -93,7 +93,7 @@ fn process(transcriber: &Transcriber, job: Job, proxy: &Proxy) {
             }
             Err(e) => {
                 log::error!("Cleanup with {} failed: {e:#}", cleaner.id());
-                murmur_platform::notify("Cleanup failed, pasted raw text");
+                notice(proxy, "Cleanup failed, pasted raw text");
             }
         }
     }
@@ -106,10 +106,10 @@ fn process(transcriber: &Transcriber, job: Job, proxy: &Proxy) {
 
     match murmur_platform::paste(&text) {
         Ok(PasteOutcome::Pasted) => {}
-        Ok(PasteOutcome::CopiedOnly) => murmur_platform::notify("Copied. Press ⌘V to paste"),
+        Ok(PasteOutcome::CopiedOnly) => notice(proxy, "Copied. Press ⌘V to paste"),
         Err(e) => {
             log::error!("Paste failed: {e:#}");
-            murmur_platform::notify("Couldn't paste the dictation");
+            notice(proxy, "Couldn't paste the dictation");
             return;
         }
     }
@@ -123,7 +123,7 @@ fn make_cleaner(job: &Job, vocabulary: Vec<String>, proxy: &Proxy) -> Option<Box
         CleanupMode::Claude => {
             let Some(key) = murmur_core::api_key::load() else {
                 let _ = proxy.send_event(AppEvent::ApiKey(false));
-                murmur_platform::notify("No API key, pasted raw text");
+                notice(proxy, "No API key, pasted raw text");
                 return None;
             };
             let _ = proxy.send_event(AppEvent::ApiKey(true));
@@ -131,4 +131,9 @@ fn make_cleaner(job: &Job, vocabulary: Vec<String>, proxy: &Proxy) -> Option<Box
         }
         CleanupMode::Ollama => Some(Box::new(OllamaCleaner::new(job.ollama_model.clone(), vocabulary))),
     }
+}
+
+/// Shown in the pill for a moment (or as a system notification where there's no pill).
+fn notice(proxy: &Proxy, message: &str) {
+    let _ = proxy.send_event(AppEvent::Notice(message.to_string()));
 }

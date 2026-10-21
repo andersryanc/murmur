@@ -20,6 +20,8 @@ tao = "0.37.1"
 arboard = "3.7.0"
 # Log to a file and stderr.
 simplelog = "0.12.2"
+# Glyph outlines and coverage for the recording pill's text, from the system UI font.
+ab_glyph = "0.2.32"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Only to read the microphone permission state for the menu's warning.
@@ -27,4 +29,33 @@ objc2-av-foundation = { version = "0.3.2", default-features = false, features = 
     "std",
     "AVCaptureDevice",
     "AVMediaFormat",
+] }
+# The recording pill: a non-activating panel showing the pill's pixels as a layer's contents.
+objc2 = "0.6.5"
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSGeometry", "NSArray"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "objc2-core-foundation",
+    "objc2-quartz-core",
+    "NSColor",
+    "NSEvent",
+    "NSGraphics",
+    "NSPanel",
+    "NSResponder",
+    "NSScreen",
+    "NSView",
+    "NSWindow",
+] }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFData"] }
+objc2-core-graphics = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "CGColorSpace",
+    "CGDataProvider",
+    "CGImage",
+] }
+objc2-quartz-core = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "objc2-core-foundation",
+    "CALayer",
+    "CATransaction",
 ] }

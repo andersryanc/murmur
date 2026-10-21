@@ -16,6 +16,10 @@ pub type Proxy = tao::event_loop::EventLoopProxy<AppEvent>;
 pub enum AppEvent {
     Hotkey(HotkeyEvent),
     Menu(MenuId),
+    /// The microphone level (0...1) while recording, about every 50 ms, for the pill's meter.
+    Level(f32),
+    /// A short message for the pill, e.g. "Cleanup failed, pasted raw text".
+    Notice(String),
     /// Startup progress for the status line, e.g. "Downloading speech model… 40%".
     Loading(String),
     ModelReady(Arc<Transcriber>),

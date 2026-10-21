@@ -12,8 +12,10 @@ use tray_icon::menu::MenuId;
 use tray_icon::{TrayIcon, TrayIconBuilder};
 
 use crate::background;
+use crate::demo::{self, Demo};
 use crate::icon;
 use crate::menu::{Action, BuiltMenu, MenuView, RECENT_SHOWN};
+use crate::pill::{self, Pill};
 use crate::pipeline::{self, Job, MINIMUM_HOLD, Recording};
 use crate::state::{AppEvent, Phase, Proxy, Timing};
 use crate::system::{self, MicAccess};
@@ -52,7 +54,10 @@ pub struct App {
     menu: Option<(MenuView, BuiltMenu)>,
     shown_status: String,
     shows_recording: bool,
-    pub next_tick: Instant,
+    pill: Pill,
+    /// Set when running the pill demo instead of the app.
+    demo: Option<Demo>,
+    next_tick: Instant,
     pub quitting: bool,
 }
 
@@ -60,6 +65,9 @@ impl App {
     /// Called once the event loop is running: on macOS the tray must be created then, on the
     /// main thread.
     pub fn start(proxy: Proxy) -> Self {
+        if demo::requested() {
+            return Self::demo(proxy);
+        }
         let settings = Settings::load();
         log::info!(
             "Settings: hotkey {:?}, cleanup {:?} ({}), microphone {:?}, sounds {:?}",
@@ -126,11 +134,43 @@ impl App {
             menu: None,
             shown_status: String::new(),
             shows_recording: false,
+            pill: Pill::new(),
+            demo: None,
             next_tick: Instant::now() + TICK,
             quitting: false,
         };
         app.create_tray();
         app
+    }
+
+    /// Just the pill, run through its states (see `demo.rs`). No hotkey tap, tray, microphone
+    /// or model, so it can run beside a real Murmur without interfering.
+    fn demo(proxy: Proxy) -> Self {
+        Self {
+            proxy,
+            settings: Settings::load(),
+            phase: Phase::Loading("Pill demo".into()),
+            recording: None,
+            queued: 0,
+            jobs: None,
+            history: Vec::new(),
+            timing: None,
+            accessibility: true,
+            microphone_access: MicAccess::Granted,
+            has_api_key: None,
+            local_models: Vec::new(),
+            devices: Vec::new(),
+            default_device: None,
+            hotkeys: None,
+            tray: None,
+            menu: None,
+            shown_status: String::new(),
+            shows_recording: false,
+            pill: Pill::new(),
+            demo: Some(Demo::new()),
+            next_tick: Instant::now() + TICK,
+            quitting: false,
+        }
     }
 
     fn create_tray(&mut self) {
@@ -160,6 +200,13 @@ impl App {
             AppEvent::Hotkey(HotkeyEvent::Released) => self.finish_recording(),
             AppEvent::Hotkey(HotkeyEvent::Cancelled) => self.cancel_recording(),
             AppEvent::Menu(id) => self.menu_clicked(&id),
+            AppEvent::Level(level) => {
+                // Readings can still be in flight just after the recording stops.
+                if self.recording.is_some() {
+                    self.pill.push_level(level);
+                }
+            }
+            AppEvent::Notice(message) => self.flash(&message),
             AppEvent::Loading(message) => {
                 if matches!(self.phase, Phase::Loading(_)) {
                     self.phase = Phase::Loading(message);
@@ -186,9 +233,25 @@ impl App {
         }
     }
 
+    /// When the event loop should next wake: the permission poll, or the pill's next frame
+    /// while it's on screen.
+    pub fn wake_at(&self) -> Instant {
+        match self.pill.next_frame() {
+            Some(frame) => frame.min(self.next_tick),
+            None => self.next_tick,
+        }
+    }
+
+    /// The loop woke at `wake_at`. Pill frames are drawn by `refresh`, which runs next.
+    pub fn timer_fired(&mut self) {
+        if Instant::now() >= self.next_tick {
+            self.tick();
+        }
+    }
+
     /// Permissions are granted in System Settings while the app runs, so poll them. The hotkey
     /// monitor makes its own tap once Accessibility is granted.
-    pub fn tick(&mut self) {
+    fn tick(&mut self) {
         self.next_tick = Instant::now() + TICK;
         let accessibility = murmur_platform::has_input_permission(false);
         if accessibility != self.accessibility {
@@ -205,21 +268,27 @@ impl App {
             return;
         }
         if self.microphone_access == MicAccess::Denied {
-            murmur_platform::notify("Murmur needs microphone access");
+            self.flash("Murmur needs microphone access");
             return;
         }
         // Note the target first: it's whatever was in front when the key went down.
         let context = murmur_platform::target_context();
         // Blocks until audio is arriving (tens of ms once warmed up), so nothing said right
         // after the start sound is lost. The Swift app also started capture on the main thread.
-        let recorder = match Recorder::start(self.settings.microphone.as_deref(), |_| {}) {
+        // Levels arrive on the audio thread; the pill lives on this one.
+        let proxy = self.proxy.clone();
+        let on_level = move |level| {
+            let _ = proxy.send_event(AppEvent::Level(level));
+        };
+        let recorder = match Recorder::start(self.settings.microphone.as_deref(), on_level) {
             Ok(recorder) => recorder,
             Err(e) => {
                 log::error!("Couldn't start the microphone: {e:#}");
-                murmur_platform::notify(&format!("Couldn't start the microphone: {e}"));
+                self.flash(&format!("Couldn't start the microphone: {e}"));
                 return;
             }
         };
+        self.pill.start_recording();
         self.recording = Some(Recording {
             recorder,
             started: Instant::now(),
@@ -227,6 +296,39 @@ impl App {
         });
         if let Some(theme) = self.settings.sounds {
             murmur_audio::play_wav(theme.start_sound(), SOUND_VOLUME);
+        }
+    }
+
+    /// Shows a short message in the pill, or as a system notification where there's no pill.
+    fn flash(&mut self, message: &str) {
+        if self.pill.available() {
+            log::info!("Notice: {message}");
+            self.pill.flash(message, Instant::now());
+        } else {
+            murmur_platform::notify(message);
+        }
+    }
+
+    /// What the pill should show: recording wins, then a notice, then queued dictations.
+    fn pill_mode(&mut self, now: Instant) -> Option<pill::Mode> {
+        if let Some(demo) = &mut self.demo {
+            return match demo.drive(&mut self.pill, now) {
+                Ok(mode) => mode,
+                Err(()) => {
+                    log::info!("Pill demo finished");
+                    self.quitting = true;
+                    None
+                }
+            };
+        }
+        if self.recording.is_some() {
+            Some(pill::Mode::Recording)
+        } else if self.pill.has_notice(now) {
+            Some(pill::Mode::Notice)
+        } else if self.queued > 0 {
+            Some(pill::Mode::Processing)
+        } else {
+            None
         }
     }
 
@@ -371,8 +473,13 @@ impl App {
         }
     }
 
-    /// Brings the tray icon and menu up to date after any event. Cheap when nothing changed.
+    /// Brings the pill, tray icon and menu up to date after any event. Cheap when nothing
+    /// changed.
     pub fn refresh(&mut self) {
+        let now = Instant::now();
+        let mode = self.pill_mode(now);
+        self.pill.update(mode, now);
+
         let Some(tray) = &self.tray else { return };
 
         let recording = self.recording.is_some();
