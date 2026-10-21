@@ -4,17 +4,29 @@ import MurmurKit
 /// Runs the push-to-talk loop: start → record → stop → transcribe → clean → paste. Commands
 /// arrive over the control socket from Hyprland key bindings (`murmur start` on press,
 /// `murmur stop` on release).
+///
+/// A new recording can start while earlier ones are still being processed. Finished recordings
+/// wait in a queue and are processed one at a time, so they paste in the order they were spoken.
 @MainActor
 final class Daemon {
     enum Phase: String {
-        case ready, recording, processing, cancelling
+        case ready, recording, processing
     }
 
     /// Holds shorter than this are treated as accidental taps.
     private static let minimumHold = Duration.milliseconds(300)
 
-    private var phase = Phase.ready {
-        didSet { watchers.send("state \(phase.rawValue)") }
+    private var recording = false {
+        didSet { publish() }
+    }
+    /// Recordings stopped but not yet pasted, including the one being processed.
+    private var queued = 0 {
+        didSet { publish() }
+    }
+    /// The last recording in the queue; the next one waits for it.
+    private var lastInQueue: Task<Void, Never>?
+    private var phase: Phase {
+        recording ? .recording : queued > 0 ? .processing : .ready
     }
     private var config = Config.load()
     private let transcriber: Transcriber
@@ -27,14 +39,20 @@ final class Daemon {
     init(transcriber: Transcriber) {
         self.transcriber = transcriber
         recorder.onLevel = { [weak self] level in
-            guard let self, phase == .recording else { return }
+            guard let self, recording else { return }
             watchers.send("level \((level * 100).rounded() / 100)")
         }
     }
 
     /// Sends events to a client that asked to watch, starting with the current state.
     func watch(_ fd: Int32) {
-        watchers.add(fd, greeting: "state \(phase.rawValue)")
+        watchers.add(fd, greeting: ["queue \(queued)", "state \(phase.rawValue)"])
+    }
+
+    /// The queue length goes first, so a watcher already knows it when the state changes.
+    private func publish() {
+        watchers.send("queue \(queued)")
+        watchers.send("state \(phase.rawValue)")
     }
 
     /// Shows `message` in the pill when the Omarchy plugin is watching, or as a notification.
@@ -48,7 +66,7 @@ final class Daemon {
         switch command {
         case "start": start()
         case "stop": stop()
-        case "toggle": phase == .recording ? stop() : start()
+        case "toggle": recording ? stop() : start()
         case "cancel": cancel()
         case "status": phase.rawValue
         default: "unknown command: \(command)"
@@ -56,7 +74,7 @@ final class Daemon {
     }
 
     private func start() -> String {
-        guard phase == .ready else { return "busy: \(phase.rawValue)" }
+        guard !recording else { return "already recording" }
         config = Config.load()
         do {
             try recorder.start(microphone: config.microphone)
@@ -65,7 +83,7 @@ final class Daemon {
             notice("Couldn't start the microphone")
             return "error: couldn't start pw-record"
         }
-        phase = .recording
+        recording = true
         recordingStarted = .now
         windowClass = Task { await Desktop.activeWindowClass() }
         Sounds.play(.start, theme: config.soundTheme)
@@ -73,32 +91,33 @@ final class Daemon {
     }
 
     private func stop() -> String {
-        guard phase == .recording else { return "not recording" }
-        phase = .processing
+        guard recording else { return "not recording" }
         Sounds.play(.stop, theme: config.soundTheme)
+        let samples = recorder.stop()
         let held = ContinuousClock.now - recordingStarted
-        Task {
-            await finish(held: held)
-            phase = .ready
+        let target = windowClass
+        let config = config
+        let previous = lastInQueue
+        queued += 1
+        recording = false
+        lastInQueue = Task {
+            let samples = await samples.value
+            await previous?.value
+            await finish(samples, held: held, target: await target?.value, config: config)
+            queued -= 1
         }
-        return "processing"
+        return queued > 1 ? "queued" : "processing"
     }
 
     private func cancel() -> String {
-        guard phase == .recording else { return "not recording" }
-        phase = .cancelling
+        guard recording else { return "not recording" }
         Sounds.play(.stop, theme: config.soundTheme)
-        Task {
-            _ = await recorder.stop()
-            phase = .ready
-        }
+        _ = recorder.stop()
+        recording = false
         return "cancelled"
     }
 
-    private func finish(held: Duration) async {
-        let samples = await recorder.stop()
-        let target = await windowClass?.value
-
+    private func finish(_ samples: [Float], held: Duration, target: String?, config: Config) async {
         // Too short, or no voice in it (a tap of the key): speech models invent words from
         // silence, so don't transcribe at all.
         guard held >= Self.minimumHold, VoiceActivity.containsSpeech(samples) else {

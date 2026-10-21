@@ -89,7 +89,7 @@ enum ControlSocket {
 }
 
 /// Clients that sent "watch", such as the Omarchy shell plugin that draws the on-screen pill.
-/// Each gets one line per event: `state recording`, `level 0.42`, `notice …`.
+/// Each gets one line per event: `state recording`, `queue 2`, `level 0.42`, `notice …`.
 @MainActor
 final class Watchers {
     private var clients: [Int32] = []
@@ -97,9 +97,9 @@ final class Watchers {
     var isEmpty: Bool { clients.isEmpty }
 
     /// Starts sending events to `fd`, beginning with `greeting` (the current state).
-    func add(_ fd: Int32, greeting: String) {
+    func add(_ fd: Int32, greeting: [String]) {
         clients.append(fd)
-        send(greeting, to: [fd])
+        for line in greeting { send(line, to: [fd]) }
     }
 
     func send(_ line: String) {

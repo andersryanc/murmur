@@ -15,8 +15,8 @@ final class Recorder {
     func start(microphone: String?) throws {
         guard Shell.has("pw-record") else { throw MurmurError("pw-record isn't installed") }
         Paths.ensure(Paths.runtime)
-        let file = Paths.runtime.appending(path: "recording.wav")
-        try? FileManager.default.removeItem(at: file)
+        // A file per recording, so the next one can start while the last is still being read.
+        let file = Paths.runtime.appending(path: "recording-\(UUID().uuidString).wav")
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -40,23 +40,26 @@ final class Recorder {
         }
     }
 
-    /// Stops recording and returns the samples. Empty if nothing was recorded.
-    func stop() async -> [Float] {
+    /// Stops recording at once and returns the samples once pw-record has finished the file.
+    /// Empty if nothing was recorded. A new recording can start before the samples arrive.
+    func stop() -> Task<[Float], Never> {
         meter?.cancel()
         meter = nil
-        guard let process, let file else { return [] }
+        guard let process, let file else { return Task { [] } }
         self.process = nil
         self.file = nil
         // SIGINT lets pw-record finish the WAV header.
         process.interrupt()
-        for _ in 0..<200 where process.isRunning { try? await Task.sleep(for: .milliseconds(10)) }
-        if process.isRunning { process.terminate() }
-        defer { try? FileManager.default.removeItem(at: file) }
-        guard let data = try? Data(contentsOf: file) else {
-            Log.info("pw-record wrote nothing (exit \(process.isRunning ? -1 : process.terminationStatus))")
-            return []
+        return Task {
+            for _ in 0..<200 where process.isRunning { try? await Task.sleep(for: .milliseconds(10)) }
+            if process.isRunning { process.terminate() }
+            defer { try? FileManager.default.removeItem(at: file) }
+            guard let data = try? Data(contentsOf: file) else {
+                Log.info("pw-record wrote nothing (exit \(process.isRunning ? -1 : process.terminationStatus))")
+                return []
+            }
+            return (try? WAV.decode(data).samples) ?? []
         }
-        return (try? WAV.decode(data).samples) ?? []
     }
 }
 

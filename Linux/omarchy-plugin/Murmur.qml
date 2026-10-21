@@ -9,7 +9,10 @@ import qs.Ui
 
 // The pill near the bottom of the screen that shows Murmur listening and working, like the Mac
 // app's HUD. It follows the daemon over its control socket: after sending "watch", the daemon
-// writes one line per event (`state recording`, `level 0.42`, `notice …`).
+// writes one line per event (`state recording`, `queue 2`, `level 0.42`, `notice …`).
+//
+// Each dictation waiting to paste gets its own card, oldest on the left: the first is being
+// processed, the rest are queued. A new recording's card sits to their right.
 //
 // The surface never takes keyboard focus and ignores the mouse. If it took focus, the paste
 // would land in the wrong place.
@@ -31,6 +34,9 @@ Item {
 
   property string phase: "ready"
   property string notice: ""
+  // One entry per dictation waiting to paste. When the oldest pastes, the first entry goes and
+  // the others slide left.
+  ListModel { id: queue }
   property var levels: []
   property bool shown: false
   // Picked when the pill appears, so it doesn't jump monitors mid-dictation.
@@ -57,19 +63,32 @@ Item {
     else root.shown = false
   }
 
+  function setQueue(count) {
+    while (queue.count > count) queue.remove(0)
+    while (queue.count < count) queue.append({ waiting: true })
+  }
+
   function handle(line) {
     var space = line.indexOf(" ")
     var kind = space < 0 ? line : line.slice(0, space)
     var rest = space < 0 ? "" : line.slice(space + 1)
-    if (kind === "state") {
+    if (kind === "queue") {
+      root.setQueue(Math.max(0, Number(rest) || 0))
+    } else if (kind === "state") {
+      var wasRecording = root.phase === "recording"
       root.phase = rest
       if (rest === "recording") {
-        root.notice = ""
-        root.resetLevels()
+        if (!wasRecording) {
+          root.notice = ""
+          root.resetLevels()
+        }
         root.show()
       } else if (rest === "processing") {
+        // An older daemon doesn't send `queue`.
+        if (queue.count === 0) queue.append({ waiting: true })
         root.show()
       } else {
+        root.setQueue(0)
         root.settle()
       }
     } else if (kind === "level" && root.phase === "recording") {
@@ -102,6 +121,7 @@ Item {
       } else {
         root.phase = "ready"
         root.notice = ""
+        root.setQueue(0)
         root.shown = false
       }
     }
@@ -119,10 +139,45 @@ Item {
     onTriggered: socket.connected = true
   }
 
+  // A rounded card in the theme's popup style, sized to what's inside it.
+  component Card: BorderSurface {
+    id: card
+
+    readonly property int pad: Style.space(16)
+    default property alias body: inner.data
+
+    width: card.borderLeft + card.pad + inner.width + card.pad + card.borderRight
+    height: card.borderTop + Style.space(40) + card.borderBottom
+    color: Util.alpha(Commons.Color.background, 0.97)
+    borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Math.max(1, Style.space(2)))
+    radius: Style.cornerRadius
+
+    Behavior on width {
+      enabled: root.shown
+      NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+    }
+
+    Item {
+      id: inner
+      anchors.centerIn: parent
+      width: childrenRect.width
+      height: Style.space(22)
+    }
+  }
+
+  component Label: Text {
+    textFormat: Text.PlainText
+    font.family: Style.font.family
+    font.pixelSize: Style.font.subtitle
+    font.weight: Font.Medium
+    color: Commons.Color.popups.text
+    anchors.verticalCenter: parent.verticalCenter
+  }
+
   PanelWindow {
     id: panel
     screen: root.targetScreen
-    visible: root.shown || card.opacity > 0
+    visible: root.shown || cards.opacity > 0
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
     WlrLayershell.namespace: "murmur"
@@ -131,40 +186,75 @@ Item {
     exclusionMode: ExclusionMode.Ignore
     mask: Region {}
 
-    BorderSurface {
-      id: card
-
-      readonly property int pad: Style.space(16)
-
-      width: card.borderLeft + card.pad + content.implicitWidth + card.pad + card.borderRight
-      height: card.borderTop + Style.space(40) + card.borderBottom
+    Row {
+      id: cards
+      spacing: Style.space(10)
       anchors.horizontalCenter: parent.horizontalCenter
       anchors.bottom: parent.bottom
       anchors.bottomMargin: Style.space(28)
-      color: Util.alpha(Commons.Color.background, 0.97)
-      borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Math.max(1, Style.space(2)))
-      radius: Style.cornerRadius
       opacity: root.shown ? 1 : 0
 
       Behavior on opacity { NumberAnimation { duration: 150 } }
-      Behavior on width {
-        enabled: root.shown
-        NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+      add: Transition {
+        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 150 }
+      }
+      move: Transition {
+        NumberAnimation { properties: "x"; duration: 250; easing.type: Easing.OutCubic }
       }
 
-      Item {
-        id: content
-        anchors.centerIn: parent
-        implicitWidth: noticeRow.visible ? noticeRow.implicitWidth
-          : (recordingRow.visible ? recordingRow.implicitWidth : thinkingRow.implicitWidth)
-        implicitHeight: Style.space(22)
+      // Waiting to paste: pulsing dots on the one being processed, "Queued" on the rest.
+      Repeater {
+        model: queue
 
-        // Recording: a dot and the live mic level, newest bar on the right.
+        Card {
+          id: waiting
+          required property int index
+          readonly property bool active: index === 0
+
+          Row {
+            spacing: Style.space(10)
+            anchors.verticalCenter: parent.verticalCenter
+
+            Row {
+              id: dots
+              property real t: 0
+              spacing: Style.space(4)
+              anchors.verticalCenter: parent.verticalCenter
+              NumberAnimation on t {
+                running: waiting.active && root.shown
+                from: 0
+                to: 2 * Math.PI / 6
+                duration: 1047
+                loops: Animation.Infinite
+              }
+              Repeater {
+                model: 3
+                Rectangle {
+                  required property int index
+                  width: Style.space(6)
+                  height: width
+                  radius: width / 2
+                  color: Commons.Color.popups.text
+                  opacity: waiting.active ? 0.35 + 0.65 * Math.max(0, Math.sin(dots.t * 6 - index * 0.8)) : 0.35
+                }
+              }
+            }
+
+            Label {
+              text: waiting.active ? "Murmuring…" : "Queued"
+              color: Util.alpha(Commons.Color.popups.text, waiting.active ? 0.9 : 0.6)
+            }
+          }
+        }
+      }
+
+      // Recording: a dot and the live mic level, newest bar on the right.
+      Card {
+        visible: root.phase === "recording"
+
         Row {
-          id: recordingRow
-          visible: root.phase === "recording" && root.notice === ""
-          anchors.centerIn: parent
           spacing: Style.space(10)
+          anchors.verticalCenter: parent.verticalCenter
 
           Rectangle {
             width: Style.space(8)
@@ -191,76 +281,27 @@ Item {
             }
           }
         }
+      }
 
-        // Processing: pulsing dots while Parakeet and the cleanup model work.
+      // Notice: something went wrong (the text was still pasted or copied).
+      Card {
+        visible: root.notice !== ""
+
         Row {
-          id: thinkingRow
-          visible: root.phase !== "recording" && root.notice === ""
-          anchors.centerIn: parent
           spacing: Style.space(10)
+          anchors.verticalCenter: parent.verticalCenter
 
-          Row {
-            id: dots
-            property real t: 0
-            spacing: Style.space(4)
-            anchors.verticalCenter: parent.verticalCenter
-            NumberAnimation on t {
-              running: thinkingRow.visible && root.shown
-              from: 0
-              to: 2 * Math.PI / 6
-              duration: 1047
-              loops: Animation.Infinite
-            }
-            Repeater {
-              model: 3
-              Rectangle {
-                required property int index
-                width: Style.space(6)
-                height: width
-                radius: width / 2
-                color: Commons.Color.popups.text
-                opacity: 0.35 + 0.65 * Math.max(0, Math.sin(dots.t * 6 - index * 0.8))
-              }
-            }
-          }
-
-          Text {
-            textFormat: Text.PlainText
-            text: "Murmuring…"
-            font.family: Style.font.family
-            font.pixelSize: Style.font.subtitle
-            font.weight: Font.Medium
-            color: Util.alpha(Commons.Color.popups.text, 0.9)
-            anchors.verticalCenter: parent.verticalCenter
-          }
-        }
-
-        // Notice: something went wrong (the text was still pasted or copied).
-        Row {
-          id: noticeRow
-          visible: root.notice !== ""
-          anchors.centerIn: parent
-          spacing: Style.space(10)
-
-          Text {
-            textFormat: Text.PlainText
+          Label {
             text: ""
-            font.family: Style.font.family
             font.pixelSize: Style.font.heading
+            font.weight: Font.Normal
             color: Commons.Color.accent
-            anchors.verticalCenter: parent.verticalCenter
           }
 
-          Text {
-            textFormat: Text.PlainText
+          Label {
             text: root.notice
-            font.family: Style.font.family
-            font.pixelSize: Style.font.subtitle
-            font.weight: Font.Medium
-            color: Commons.Color.popups.text
             elide: Text.ElideRight
             width: Math.min(implicitWidth, Style.space(320))
-            anchors.verticalCenter: parent.verticalCenter
           }
         }
       }

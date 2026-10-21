@@ -190,7 +190,7 @@ The pieces, all in [`Sources/murmur`](Sources/murmur):
 | `Config.swift` | `config.json` and choosing the cleaner. |
 | `Support.swift` | XDG paths, the log, running command-line tools. |
 
-The on-screen pill is [`omarchy-plugin/Murmur.qml`](omarchy-plugin/Murmur.qml), a `panel` plugin for the Omarchy shell (Quickshell). It connects to the daemon's socket and sends `watch`; the daemon keeps that connection open and writes one line per event: `state ready|recording|processing|cancelling`, `level 0.42` (about every 50 ms while recording, measured from the WAV file `pw-record` is writing), and `notice <message>`. While anything is watching, notices go to the pill instead of `notify-send`. To work on the plugin, link it instead of copying it, and the shell reloads it on save (`install.sh` leaves a link alone):
+The on-screen pill is [`omarchy-plugin/Murmur.qml`](omarchy-plugin/Murmur.qml), a `panel` plugin for the Omarchy shell (Quickshell). It connects to the daemon's socket and sends `watch`; the daemon keeps that connection open and writes one line per event: `state ready|recording|processing`, `queue 2` (dictations waiting to paste, including the one being processed), `level 0.42` (about every 50 ms while recording, measured from the WAV file `pw-record` is writing), and `notice <message>`. While anything is watching, notices go to the pill instead of `notify-send`. To work on the plugin, link it instead of copying it, and the shell reloads it on save (`install.sh` leaves a link alone):
 
 ```bash
 rm -rf ~/.config/omarchy/plugins/plyhdrn.murmur
