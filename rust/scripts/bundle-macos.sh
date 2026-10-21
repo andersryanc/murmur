@@ -27,6 +27,10 @@ echo "Assembling $APP…"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp target/release/murmur "$APP/Contents/MacOS/Murmur"
+# sherpa-onnx and ONNX Runtime are shared libraries on macOS (see murmur-stt's Cargo.toml); the
+# binary finds them through its @executable_path/../Frameworks rpath.
+mkdir -p "$APP/Contents/Frameworks"
+cp target/release/libsherpa-onnx-c-api.dylib target/release/libonnxruntime.dylib "$APP/Contents/Frameworks/"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -76,6 +80,8 @@ cat > "$ENTITLEMENTS" <<PLIST
 PLIST
 
 echo "Signing as \"$IDENTITY\"…"
+# Inside out: the libraries first, then the app that seals them.
+codesign --force --options runtime --timestamp=none --sign "$IDENTITY" "$APP"/Contents/Frameworks/*.dylib
 codesign --force --options runtime --timestamp=none \
     --entitlements "$ENTITLEMENTS" \
     --identifier "$BUNDLE_ID" \
