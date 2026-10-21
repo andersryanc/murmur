@@ -31,8 +31,13 @@ impl TargetContext {
 
     /// Best guess from the frontmost app's bundle identifier on macOS.
     pub fn from_bundle_id(id: Option<&str>) -> Self {
-        let Some(id) = id.map(str::to_lowercase) else { return Self::Plain };
-        KNOWN_APPS.iter().find(|(prefix, _)| id.starts_with(prefix)).map_or(Self::Plain, |&(_, c)| c)
+        let Some(id) = id.map(str::to_lowercase) else {
+            return Self::Plain;
+        };
+        KNOWN_APPS
+            .iter()
+            .find(|(prefix, _)| id.starts_with(prefix))
+            .map_or(Self::Plain, |&(_, c)| c)
     }
 
     /// Best guess from the focused window's class on Linux (`hyprctl activewindow -j`), e.g.
@@ -48,8 +53,13 @@ impl TargetContext {
     }
 
     fn by_fragment(name: Option<&str>, table: &[(&str, TargetContext)]) -> Self {
-        let Some(name) = name.map(str::to_lowercase).filter(|n| !n.is_empty()) else { return Self::Plain };
-        table.iter().find(|(fragment, _)| name.contains(fragment)).map_or(Self::Plain, |&(_, c)| c)
+        let Some(name) = name.map(str::to_lowercase).filter(|n| !n.is_empty()) else {
+            return Self::Plain;
+        };
+        table
+            .iter()
+            .find(|(fragment, _)| name.contains(fragment))
+            .map_or(Self::Plain, |&(_, c)| c)
     }
 }
 
@@ -90,33 +100,82 @@ const KNOWN_APPS: &[(&str, TargetContext)] = &[
 /// Checked in order, so a more specific fragment must come before a shorter one inside it.
 const KNOWN_WINDOW_CLASSES: &[(&str, TargetContext)] = &[
     // Chat
-    ("slack", Chat), ("discord", Chat), ("vesktop", Chat), ("signal", Chat),
-    ("telegram", Chat), ("whatsapp", Chat), ("element", Chat), ("teams", Chat),
+    ("slack", Chat),
+    ("discord", Chat),
+    ("vesktop", Chat),
+    ("signal", Chat),
+    ("telegram", Chat),
+    ("whatsapp", Chat),
+    ("element", Chat),
+    ("teams", Chat),
     // Email
-    ("thunderbird", Email), ("mail.google.com", Email), ("hey.com", Email), ("geary", Email),
-    ("evolution", Email), ("outlook", Email), ("superhuman", Email), ("betterbird", Email),
+    ("thunderbird", Email),
+    ("mail.google.com", Email),
+    ("hey.com", Email),
+    ("geary", Email),
+    ("evolution", Email),
+    ("outlook", Email),
+    ("superhuman", Email),
+    ("betterbird", Email),
     // Notes and docs
-    ("obsidian", Notes), ("notion", Notes), ("logseq", Notes), ("typora", Notes),
-    ("joplin", Notes), ("docs.google.com", Notes),
+    ("obsidian", Notes),
+    ("notion", Notes),
+    ("logseq", Notes),
+    ("typora", Notes),
+    ("joplin", Notes),
+    ("docs.google.com", Notes),
     // Code: editors, terminals, AI coding tools
-    ("code", Code), ("cursor", Code), ("zed", Code), ("jetbrains", Code), ("neovide", Code),
-    ("alacritty", Code), ("kitty", Code), ("ghostty", Code), ("foot", Code),
-    ("wezterm", Code), ("konsole", Code), ("gnome-terminal", Code), ("claude", Code),
+    ("code", Code),
+    ("cursor", Code),
+    ("zed", Code),
+    ("jetbrains", Code),
+    ("neovide", Code),
+    ("alacritty", Code),
+    ("kitty", Code),
+    ("ghostty", Code),
+    ("foot", Code),
+    ("wezterm", Code),
+    ("konsole", Code),
+    ("gnome-terminal", Code),
+    ("claude", Code),
 ];
 
 /// Checked in order, like the window classes.
 const KNOWN_PROCESSES: &[(&str, TargetContext)] = &[
     // Chat
-    ("slack", Chat), ("discord", Chat), ("signal", Chat), ("telegram", Chat),
-    ("whatsapp", Chat), ("ms-teams", Chat), ("teams", Chat),
+    ("slack", Chat),
+    ("discord", Chat),
+    ("signal", Chat),
+    ("telegram", Chat),
+    ("whatsapp", Chat),
+    ("ms-teams", Chat),
+    ("teams", Chat),
     // Email
-    ("outlook", Email), ("olk", Email), ("thunderbird", Email), ("superhuman", Email),
+    ("outlook", Email),
+    ("olk", Email),
+    ("thunderbird", Email),
+    ("superhuman", Email),
     // Notes and docs
-    ("obsidian", Notes), ("notion", Notes), ("logseq", Notes), ("onenote", Notes), ("winword", Notes),
+    ("obsidian", Notes),
+    ("notion", Notes),
+    ("logseq", Notes),
+    ("onenote", Notes),
+    ("winword", Notes),
     // Code: editors, terminals, AI coding tools
-    ("code", Code), ("cursor", Code), ("zed", Code), ("devenv", Code), ("idea", Code),
-    ("pycharm", Code), ("rider", Code), ("windowsterminal", Code), ("wezterm", Code),
-    ("alacritty", Code), ("powershell", Code), ("pwsh", Code), ("cmd.exe", Code), ("claude", Code),
+    ("code", Code),
+    ("cursor", Code),
+    ("zed", Code),
+    ("devenv", Code),
+    ("idea", Code),
+    ("pycharm", Code),
+    ("rider", Code),
+    ("windowsterminal", Code),
+    ("wezterm", Code),
+    ("alacritty", Code),
+    ("powershell", Code),
+    ("pwsh", Code),
+    ("cmd.exe", Code),
+    ("claude", Code),
 ];
 
 #[cfg(test)]
@@ -127,16 +186,25 @@ mod tests {
     fn bundle_ids() {
         assert_eq!(TargetContext::from_bundle_id(Some("com.tinyspeck.slackmacgap")), Chat);
         assert_eq!(TargetContext::from_bundle_id(Some("com.jetbrains.intellij")), Code);
-        assert_eq!(TargetContext::from_bundle_id(Some("com.example.unknown")), TargetContext::Plain);
+        assert_eq!(
+            TargetContext::from_bundle_id(Some("com.example.unknown")),
+            TargetContext::Plain
+        );
         assert_eq!(TargetContext::from_bundle_id(None), TargetContext::Plain);
     }
 
     #[test]
     fn window_classes_and_processes() {
-        assert_eq!(TargetContext::from_window_class(Some("chrome-app.slack.com__client-Default")), Chat);
+        assert_eq!(
+            TargetContext::from_window_class(Some("chrome-app.slack.com__client-Default")),
+            Chat
+        );
         assert_eq!(TargetContext::from_window_class(Some("Alacritty")), Code);
         assert_eq!(TargetContext::from_process_name(Some("Slack.exe")), Chat);
         assert_eq!(TargetContext::from_process_name(Some("WindowsTerminal.exe")), Code);
-        assert_eq!(TargetContext::from_process_name(Some("explorer.exe")), TargetContext::Plain);
+        assert_eq!(
+            TargetContext::from_process_name(Some("explorer.exe")),
+            TargetContext::Plain
+        );
     }
 }

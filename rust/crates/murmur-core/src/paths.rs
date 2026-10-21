@@ -39,5 +39,8 @@ fn home() -> PathBuf {
 
 #[cfg(target_os = "linux")]
 fn xdg(variable: &str, fallback: &str) -> PathBuf {
-    std::env::var_os(variable).filter(|v| !v.is_empty()).map(PathBuf::from).unwrap_or_else(|| home().join(fallback))
+    std::env::var_os(variable)
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home().join(fallback))
 }

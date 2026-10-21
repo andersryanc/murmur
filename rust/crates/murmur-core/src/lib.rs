@@ -15,6 +15,9 @@ pub mod settings;
 pub mod sounds;
 pub mod voice;
 
+pub use cleaner::{ClaudeCleaner, OllamaCleaner, TextCleaner};
 pub use context::TargetContext;
-pub use settings::Hotkey;
+pub use dictionary::{Dictionary, Replacement};
+pub use settings::{CleanupMode, Hotkey, Settings};
+pub use sounds::SoundTheme;
 pub use voice::SAMPLE_RATE;
