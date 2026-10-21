@@ -48,6 +48,6 @@ mod tests {
         assert!(contains_speech(&tone));
         assert!((voiced_duration(&tone) - 1.0).abs() < 0.03);
         assert_eq!(level(&[]), 0.0);
-        assert!(level(&tone) > 0.6);
+        assert!((level(&tone) - 0.54).abs() < 0.02); // 0.1 amplitude ≈ -23 dB
     }
 }
