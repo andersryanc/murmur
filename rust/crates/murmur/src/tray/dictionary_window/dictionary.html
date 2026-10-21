@@ -134,7 +134,7 @@ input { -webkit-user-select: text; user-select: text; }
 
 /* The list. */
 .list {
-  flex: 1; min-height: 0; overflow-y: auto; border-radius: 8px; padding: 4px 2px;
+  flex: 1; min-height: 0; overflow-y: auto; border-radius: 8px; padding: 5px;
   background: var(--box); border: 1px solid var(--box-border); outline: none; position: relative;
 }
 .row {
@@ -683,14 +683,16 @@ input { -webkit-user-select: text; user-select: text; }
     event.preventDefault(); // keep the focus handling below in charge
     if (state.editing) finishEdit(true);
     if (button && row) { remove(Number(row.dataset.id)); list.focus(); return; }
+    // A double-click is caught here rather than with "dblclick": the first click re-renders the
+    // list, replacing the row under the pointer, and WebKit then never fires dblclick on it.
+    if (row && event.detail >= 2) {
+      const cell = event.target.closest(".cell");
+      startEdit(Number(row.dataset.id), cell && cell.dataset.field);
+      return;
+    }
     state.selected = row ? Number(row.dataset.id) : null;
     list.focus();
     renderList();
-  });
-  list.addEventListener("dblclick", (event) => {
-    const row = event.target.closest(".row");
-    const cell = event.target.closest(".cell");
-    if (row && !event.target.closest(".delete")) startEdit(Number(row.dataset.id), cell && cell.dataset.field);
   });
   list.addEventListener("keydown", (event) => {
     if (event.target !== list) return;
