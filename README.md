@@ -25,7 +25,7 @@ Most of the quality comes from the cleanup pass. It fixes misheard words, drops 
 ```bash
 brew install xcodegen   # once
 echo 'DEVELOPMENT_TEAM = <your Team ID>' > App/Signing.local.xcconfig   # once; see App/Signing.xcconfig, or below for no Apple account
-./scripts/install.sh    # build Release, install to /Applications, launch
+./scripts/install.sh    # build Release, install to /Applications (~/Applications without admin rights), launch
 ```
 
 On first launch, allow **Microphone** and turn on Murmur under **System Settings › Privacy & Security › Accessibility**. Accessibility lets Murmur see the push-to-talk key and paste at your cursor. Both permissions persist across rebuilds because the app is always signed with the same certificate.
@@ -46,12 +46,14 @@ Hold **fn** (changeable in the menu), speak, and release. The text is pasted whe
 
 You need Xcode 26 (free from the App Store) but no developer account: sign with a self-signed certificate instead. It's only trusted on the Mac that built it, which is all a local build needs, and macOS keeps the permissions across rebuilds as long as you keep the certificate.
 
-1. In **Keychain Access**, choose **Keychain Access › Certificate Assistant › Create a Certificate…**. Name it `Murmur Self-Signed`, set **Identity Type** to **Self-Signed Root** and **Certificate Type** to **Code Signing**, and click **Create**.
-2. Point the build at it:
+1. Open Xcode once so it finishes installing its components, and install XcodeGen (`brew install xcodegen`). If `xcodebuild` says it needs Xcode rather than the Command Line Tools, run `sudo xcode-select -s /Applications/Xcode.app`, or without admin rights, `export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` in the shell you build from.
+2. In **Keychain Access**, choose **Keychain Access › Certificate Assistant › Create a Certificate…**. Name it `Murmur Self-Signed`, set **Identity Type** to **Self-Signed Root** and **Certificate Type** to **Code Signing**, and click **Create**.
+3. Point the build at it, from the repo folder:
    ```bash
    printf 'MURMUR_SIGN_IDENTITY = Murmur Self-Signed\nDEVELOPMENT_TEAM =\n' > App/Signing.local.xcconfig
    ```
-3. Run `./scripts/install.sh` as above. The first build may ask to use the certificate's key; choose **Always Allow**.
+4. Run `./scripts/install.sh`. The first build downloads the Swift packages and may ask to use the certificate's key; choose **Always Allow**. Then grant Microphone and Accessibility as above.
+5. For Claude cleanup, store your API key (the command is under [Eval harness](#eval-harness)). Without one, Murmur pastes the raw transcript, or use Local Model or Off in the menu.
 
 ### Other Macs
 
