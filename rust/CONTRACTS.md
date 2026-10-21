@@ -134,6 +134,47 @@ pub fn has_input_permission(prompt: bool) -> bool;          // macOS Accessibili
 pub fn notify(message: &str);
 ```
 
+## murmur-control (Unix only; the Linux daemon's control socket)
+
+Hyprland key bindings run `murmur start` / `murmur stop`, which send one command and print the
+reply; the Omarchy plugin (`linux/omarchy-plugin`) sends `watch` and stays connected for events.
+Plain text, one line each way. The plugin parses it, so the wire format doesn't change.
+
+```rust
+pub fn socket_path() -> PathBuf;   // $XDG_RUNTIME_DIR/murmur/murmur.sock, else /tmp/murmur-<uid>/murmur/murmur.sock
+                                   // (the same path the plugin computes)
+pub enum Command { Start, Stop, Toggle, Cancel, Status }   // "start", …; ALL, as_str(), parse(), Display
+pub const WATCH: &str = "watch";   // handled by the server, never reaches the handler
+pub enum Phase { Ready, Recording, Processing }            // as_str(), parse(), Display
+pub enum Event {                   // Display gives the line (no newline); parse() reads one
+    State(Phase),                  // "state recording"
+    Queue(usize),                  // "queue 2": waiting to paste, including the one being processed
+    Level(f32),                    // "level 0.42": 0...1, two decimals, ~every 50 ms while recording
+    Notice(String),                // "notice <text>": newlines become spaces
+}
+pub enum ControlError { NotRunning, AlreadyRunning }       // std Error; downcast from anyhow
+
+// Client
+pub fn send(command: Command) -> anyhow::Result<String>;  // to socket_path(); the reply, trimmed
+pub fn send_to(path: &Path, command: Command) -> anyhow::Result<String>;
+pub fn watch(path: &Path) -> anyhow::Result<Watch>;       // Iterator<Item = Event>; set_read_timeout()
+
+// Server: its own thread; dropping it stops the thread and removes the socket file
+pub struct Server;
+impl Server {
+    /// Fails with AlreadyRunning if something answers on `path`; replaces a stale socket file.
+    /// `handler` runs on the server thread, one command at a time; unknown commands get
+    /// "unknown command: <line>" without reaching it.
+    pub fn start(path: &Path, handler: impl FnMut(Command) -> String + Send + 'static) -> anyhow::Result<Self>;
+    /// From any thread; never blocks. Drops watchers that are gone or not reading. Returns how
+    /// many got it (0 → nobody saw a notice, so fall back to murmur_platform::notify).
+    /// The latest Queue and State are sent to each new watcher first.
+    pub fn broadcast(&self, event: &Event) -> usize;
+    pub fn watcher_count(&self) -> usize;
+    pub fn path(&self) -> &Path;
+}
+```
+
 ## murmur (the app)
 
 Tray menu, recording pill, the dictation queue, settings. Uses only the APIs above.
