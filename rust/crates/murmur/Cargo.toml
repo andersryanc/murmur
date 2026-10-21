@@ -6,7 +6,25 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+log.workspace = true
 murmur-core.workspace = true
 murmur-stt.workspace = true
 murmur-audio.workspace = true
 murmur-platform.workspace = true
+# The menu-bar (macOS) / notification-area (Windows) / AppIndicator (Linux) icon and its menu.
+# The menu types come from tray-icon's re-export of muda, so the two versions always match.
+tray-icon = "0.26.1"
+# The main-thread event loop tray-icon is built and documented against.
+tao = "0.37.1"
+# Copying a recent dictation without pasting it.
+arboard = "3.7.0"
+# Log to a file and stderr.
+simplelog = "0.12.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Only to read the microphone permission state for the menu's warning.
+objc2-av-foundation = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "AVCaptureDevice",
+    "AVMediaFormat",
+] }
