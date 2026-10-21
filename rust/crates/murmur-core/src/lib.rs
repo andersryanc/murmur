@@ -17,3 +17,4 @@ pub mod voice;
 
 pub use context::TargetContext;
 pub use settings::Hotkey;
+pub use voice::SAMPLE_RATE;
