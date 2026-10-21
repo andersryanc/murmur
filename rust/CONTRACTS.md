@@ -91,6 +91,7 @@ pub const DEFAULT_MODEL: &str = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8";
 pub fn default_model_dir() -> PathBuf;                 // murmur_core::paths::models_dir()/DEFAULT_MODEL
 pub fn model_present(dir: &Path) -> bool;
 pub fn download_model(dir: &Path, progress: impl FnMut(u64, Option<u64>)) -> anyhow::Result<()>;
+pub fn default_threads() -> usize;                     // min(cores, 8): faster than 4 on big chips, flat after 8
 pub struct Transcriber;                                // Send + Sync
 impl Transcriber {
     pub fn new(model_dir: &Path, threads: usize) -> anyhow::Result<Self>;

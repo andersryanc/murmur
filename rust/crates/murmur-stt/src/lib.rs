@@ -130,6 +130,12 @@ impl<R: Read> Read for Progress<'_, R> {
     }
 }
 
+/// A good `threads` for `Transcriber::new`: up to 8. On an M4 Max 8 was the sweet spot; 12 was
+/// no faster and less consistent, and fewer than 8 is proportionally slower.
+pub fn default_threads() -> usize {
+    std::thread::available_parallelism().map_or(4, |n| n.get().min(8))
+}
+
 /// Parakeet loaded and ready. Loading takes a second or two, so the app keeps one around.
 pub struct Transcriber {
     // sherpa-onnx marks its recognizer Send + Sync, but dictation transcribes one clip at a time
@@ -163,6 +169,9 @@ impl Transcriber {
                 },
                 tokens: file(MODEL_FILES[3]),
                 model_type: Some("nemo_transducer".into()),
+                // CPU only. The statically linked onnxruntime has no CoreML provider (sherpa-onnx
+                // logs a fallback to CPU), and with the shared one CoreML was 2x slower than CPU
+                // on the int8 model, with a 4 s load.
                 provider: Some("cpu".into()),
                 num_threads: threads.clamp(1, i32::MAX as usize) as i32,
                 ..Default::default()

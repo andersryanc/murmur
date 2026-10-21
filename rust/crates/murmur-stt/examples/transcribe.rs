@@ -34,11 +34,11 @@ fn main() -> anyhow::Result<()> {
         println!();
     }
 
-    // Up to 4, as the Swift Linux build used; MURMUR_THREADS overrides it for measuring.
+    // MURMUR_THREADS overrides the default, for measuring.
     let threads = std::env::var("MURMUR_THREADS")
         .ok()
         .and_then(|s| s.parse().ok())
-        .unwrap_or_else(|| std::thread::available_parallelism().map_or(4, |n| n.get().min(4)));
+        .unwrap_or_else(murmur_stt::default_threads);
     let start = Instant::now();
     let transcriber = Transcriber::new(&dir, threads)?;
     println!("Loaded in {:.2} s ({threads} threads)", start.elapsed().as_secs_f64());
