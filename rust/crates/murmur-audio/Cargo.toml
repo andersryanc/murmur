@@ -6,4 +6,12 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+log.workspace = true
 murmur-core.workspace = true
+# Cross-platform audio I/O: CoreAudio on macOS, WASAPI on Windows, ALSA on Linux (needs the
+# ALSA headers to build: libasound2-dev on Debian/Ubuntu, alsa-lib on Arch).
+cpal = "0.18.2"
+# Band-limited resampling to 16 kHz for speech recognition.
+rubato = "5.0.1"
+# Decoding the in-memory start/stop sounds.
+hound = "3.5.1"
