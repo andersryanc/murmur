@@ -49,6 +49,10 @@ enum Hotkey: String, CaseIterable, Identifiable {
 /// Creating the tap needs Accessibility permission, which Murmur needs anyway to paste. Call
 /// `install()` again once permission is granted.
 final class HotkeyMonitor {
+    /// How long the key has to stay down before it counts as push-to-talk. A quicker tap is left
+    /// to macOS, so tapping fn still opens the emoji picker without starting a recording.
+    static let holdDelay: TimeInterval = 0.2
+
     var hotkey: Hotkey = .fn
     var onPress: () -> Void = {}
     var onRelease: () -> Void = {}
@@ -59,6 +63,8 @@ final class HotkeyMonitor {
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var isDown = false
+    /// The hold delay is running: the key is down but `onPress` hasn't fired yet.
+    private var pendingPress: DispatchWorkItem?
 
     /// Returns false when the tap couldn't be created, which means no Accessibility permission yet.
     @discardableResult
@@ -88,6 +94,12 @@ final class HotkeyMonitor {
         tap = nil
         runLoopSource = nil
         isDown = false
+        cancelPendingPress()
+    }
+
+    private func cancelPendingPress() {
+        pendingPress?.cancel()
+        pendingPress = nil
     }
 
     fileprivate func handle(type: CGEventType, keyCode: UInt16, flags: CGEventFlags) {
@@ -96,16 +108,33 @@ final class HotkeyMonitor {
             // macOS switches a tap off if it stalls; turn it straight back on.
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
         case .keyDown:
-            if isDown { onChord() }
+            guard isDown else { return }
+            if pendingPress != nil {
+                // A shortcut typed before the hold delay ran out: never start recording at all.
+                cancelPendingPress()
+            } else {
+                onChord()
+            }
         case .flagsChanged:
             guard keyCode == hotkey.keyCode else { return }
             let pressed = flags.contains(hotkey.flag)
             if pressed, !isDown {
                 isDown = true
-                onPress()
+                let press = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
+                    pendingPress = nil
+                    onPress()
+                }
+                pendingPress = press
+                DispatchQueue.main.asyncAfter(deadline: .now() + Self.holdDelay, execute: press)
             } else if !pressed, isDown {
                 isDown = false
-                onRelease()
+                if pendingPress != nil {
+                    // A quick tap: recording never started, so there's nothing to finish.
+                    cancelPendingPress()
+                } else {
+                    onRelease()
+                }
             }
         default:
             break
