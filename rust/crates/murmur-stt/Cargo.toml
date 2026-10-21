@@ -7,3 +7,12 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 murmur-core.workspace = true
+# The official k2-fsa bindings. Its default `static` feature downloads sherpa-onnx's prebuilt
+# static libraries (onnxruntime included) at build time and links them into the binary.
+sherpa-onnx = "1.13.8"
+ureq = "3.5.0"
+bzip2 = "0.6.1"
+tar = "0.4.46"
+
+[dev-dependencies]
+hound = "3.5.1"
