@@ -3,6 +3,10 @@
 Push-to-talk dictation for macOS, with a Linux (Hyprland) version in [`Linux/`](Linux). Hold a key, speak, and polished text appears wherever your cursor is.
 
 <p align="center">
+  <img src="docs/screenshots/demo.gif" width="946" alt="Dictating into a prompt box: the recording pill shows the live mic level, then &quot;Murmuring…&quot;, then &quot;Help me set up a new project.&quot; is pasted at the cursor">
+</p>
+
+<p align="center">
   <img src="docs/screenshots/hud.webp" width="423" alt="The recording pill: a red dot and a live microphone level meter at the bottom of the screen">
 </p>
 
