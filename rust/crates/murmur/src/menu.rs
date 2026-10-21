@@ -26,6 +26,8 @@ pub enum Action {
     RefreshLocalModels,
     Microphone(Option<String>),
     Sounds(Option<SoundTheme>),
+    /// Turn Launch at Login on (true) or off.
+    LaunchAtLogin(bool),
     Dictionary,
     Quit,
 }
@@ -47,6 +49,8 @@ pub struct MenuView {
     pub devices: Vec<String>,
     pub default_device: Option<String>,
     pub sounds: Option<SoundTheme>,
+    /// Whether Murmur opens at login; `None` where it can't, which leaves the item out.
+    pub launch_at_login: Option<bool>,
 }
 
 /// How many recent dictations the menu lists.
@@ -166,6 +170,9 @@ impl BuiltMenu {
         sounds.push(separator());
         sounds.push(b.check("Off", view.sounds.is_none(), Action::Sounds(None)));
         items.push(submenu("Sound Effects", sounds));
+        if let Some(on) = view.launch_at_login {
+            items.push(b.check("Launch at Login", on, Action::LaunchAtLogin(!on)));
+        }
 
         items.push(separator());
         items.push(b.item("Dictionary…", Action::Dictionary));

@@ -6,18 +6,22 @@ use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
 
 use murmur_audio::Recorder;
-use murmur_core::{CleanupMode, Dictionary, Settings, SoundTheme};
+use murmur_core::{CleanupMode, Settings, SoundTheme};
 use murmur_platform::{HotkeyEvent, HotkeyMonitor};
+use tao::event::WindowEvent;
+use tao::window::WindowId;
 use tray_icon::menu::MenuId;
 use tray_icon::{TrayIcon, TrayIconBuilder};
 
 use crate::background;
 use crate::demo::{self, Demo};
+use crate::dictionary_window::{self, DictionaryWindow};
 use crate::icon;
+use crate::login_item;
 use crate::menu::{Action, BuiltMenu, MenuView, RECENT_SHOWN};
 use crate::pill::{self, Pill};
 use crate::pipeline::{self, Job, MINIMUM_HOLD, Recording};
-use crate::state::{AppEvent, Phase, Proxy, Timing};
+use crate::state::{AppEvent, Phase, Proxy, Target, Timing};
 use crate::system::{self, MicAccess};
 
 /// How often to re-check permissions, which are granted in System Settings while we run.
@@ -57,6 +61,11 @@ pub struct App {
     pill: Pill,
     /// Set when running the pill demo instead of the app.
     demo: Option<Demo>,
+    dictionary: DictionaryWindow,
+    /// Running only the Dictionary window (`MURMUR_OPEN_DICTIONARY=1`): quit when it closes.
+    dictionary_only: bool,
+    /// What the system says; `None` where there's no such thing.
+    launch_at_login: Option<login_item::Status>,
     next_tick: Instant,
     pub quitting: bool,
 }
@@ -64,9 +73,12 @@ pub struct App {
 impl App {
     /// Called once the event loop is running: on macOS the tray must be created then, on the
     /// main thread.
-    pub fn start(proxy: Proxy) -> Self {
+    pub fn start(proxy: Proxy, target: &Target) -> Self {
         if demo::requested() {
             return Self::demo(proxy);
+        }
+        if dictionary_window::requested() {
+            return Self::dictionary_only(proxy, target);
         }
         let settings = Settings::load();
         log::info!(
@@ -115,7 +127,6 @@ impl App {
         }
 
         let mut app = Self {
-            proxy,
             settings,
             phase: Phase::Loading("Starting…".into()),
             recording: None,
@@ -136,8 +147,12 @@ impl App {
             shows_recording: false,
             pill: Pill::new(),
             demo: None,
+            dictionary: DictionaryWindow::new(proxy.clone()),
+            dictionary_only: false,
+            launch_at_login: login_item::status(),
             next_tick: Instant::now() + TICK,
             quitting: false,
+            proxy,
         };
         app.create_tray();
         app
@@ -147,9 +162,27 @@ impl App {
     /// or model, so it can run beside a real Murmur without interfering.
     fn demo(proxy: Proxy) -> Self {
         Self {
-            proxy,
+            demo: Some(Demo::new()),
+            ..Self::idle(proxy, "Pill demo")
+        }
+    }
+
+    /// Just the Dictionary window, with no hotkey tap, tray or model, like the pill demo.
+    fn dictionary_only(proxy: Proxy, target: &Target) -> Self {
+        log::info!("Dictionary window only; quits when it closes");
+        let mut app = Self {
+            dictionary_only: true,
+            ..Self::idle(proxy, "Dictionary")
+        };
+        app.dictionary.show(target);
+        app
+    }
+
+    /// An app that does nothing by itself, for the modes above to build on.
+    fn idle(proxy: Proxy, status: &str) -> Self {
+        Self {
             settings: Settings::load(),
-            phase: Phase::Loading("Pill demo".into()),
+            phase: Phase::Loading(status.into()),
             recording: None,
             queued: 0,
             jobs: None,
@@ -167,9 +200,13 @@ impl App {
             shown_status: String::new(),
             shows_recording: false,
             pill: Pill::new(),
-            demo: Some(Demo::new()),
+            demo: None,
+            dictionary: DictionaryWindow::new(proxy.clone()),
+            dictionary_only: false,
+            launch_at_login: None,
             next_tick: Instant::now() + TICK,
             quitting: false,
+            proxy,
         }
     }
 
@@ -194,12 +231,12 @@ impl App {
 
     // MARK: - Events
 
-    pub fn handle(&mut self, event: AppEvent) {
+    pub fn handle(&mut self, event: AppEvent, target: &Target) {
         match event {
             AppEvent::Hotkey(HotkeyEvent::Pressed) => self.start_recording(),
             AppEvent::Hotkey(HotkeyEvent::Released) => self.finish_recording(),
             AppEvent::Hotkey(HotkeyEvent::Cancelled) => self.cancel_recording(),
-            AppEvent::Menu(id) => self.menu_clicked(&id),
+            AppEvent::Menu(id) => self.menu_clicked(&id, target),
             AppEvent::Level(level) => {
                 // Readings can still be in flight just after the recording stops.
                 if self.recording.is_some() {
@@ -230,6 +267,22 @@ impl App {
             }
             AppEvent::Timing(timing) => self.timing = Some(timing),
             AppEvent::JobDone => self.queued = self.queued.saturating_sub(1),
+            AppEvent::Dictionary(message) => {
+                self.dictionary.message(&message);
+                self.quit_if_dictionary_closed();
+            }
+        }
+    }
+
+    /// An event for one of our tao windows (only the Dictionary window is one).
+    pub fn window_event(&mut self, id: WindowId, event: &WindowEvent) {
+        self.dictionary.window_event(id, event);
+        self.quit_if_dictionary_closed();
+    }
+
+    fn quit_if_dictionary_closed(&mut self) {
+        if self.dictionary_only && !self.dictionary.is_open() {
+            self.quitting = true;
         }
     }
 
@@ -259,6 +312,11 @@ impl App {
             self.accessibility = accessibility;
         }
         self.microphone_access = system::microphone_access();
+        if self.launch_at_login.is_some() {
+            // Can be switched off in System Settings while we run.
+            self.launch_at_login = login_item::status();
+        }
+        self.dictionary.tick();
     }
 
     // MARK: - Push to talk
@@ -375,7 +433,7 @@ impl App {
 
     // MARK: - Menu
 
-    fn menu_clicked(&mut self, id: &MenuId) {
+    fn menu_clicked(&mut self, id: &MenuId, target: &Target) {
         let Some(action) = self.menu.as_ref().and_then(|(_, built)| built.action(id)) else {
             return;
         };
@@ -425,12 +483,30 @@ impl App {
                 }
                 self.save();
             }
-            Action::Dictionary => open_dictionary(),
+            Action::LaunchAtLogin(on) => self.set_launch_at_login(on),
+            Action::Dictionary => self.dictionary.show(target),
             Action::Quit => {
                 log::info!("Quitting");
                 self.quitting = true;
             }
         }
+    }
+
+    fn set_launch_at_login(&mut self, on: bool) {
+        match login_item::set(on) {
+            Ok(()) => log::info!("Launch at Login {}", if on { "on" } else { "off" }),
+            Err(e) => {
+                log::error!("Couldn't change Login Items: {e:#}");
+                self.flash(&format!("Couldn't change Login Items: {e}"));
+            }
+        }
+        self.launch_at_login = login_item::status();
+        if on && self.launch_at_login == Some(login_item::Status::NeedsApproval) {
+            self.flash("Allow Murmur in Login Items to finish");
+            login_item::open_settings();
+        }
+        // muda flips the checkmark itself when clicked; rebuild so it shows what the system says.
+        self.menu = None;
     }
 
     fn save(&self) {
@@ -454,6 +530,7 @@ impl App {
             devices: self.devices.clone(),
             default_device: self.default_device.clone(),
             sounds: self.settings.sounds,
+            launch_at_login: self.launch_at_login.map(|status| status == login_item::Status::On),
         }
     }
 
@@ -514,18 +591,4 @@ impl App {
         self.recording = None;
         self.tray = None;
     }
-}
-
-/// Opens dictionary.json in the default text editor, creating an empty one first if needed.
-/// (The Swift app has a Dictionary window; this stands in for it for now.)
-fn open_dictionary() {
-    let path = Dictionary::default_path();
-    if !path.exists()
-        && let Err(e) = Dictionary::default().save(&path)
-    {
-        log::error!("Couldn't create {}: {e:#}", path.display());
-        murmur_platform::notify("Couldn't create the dictionary file");
-        return;
-    }
-    system::open_in_editor(&path);
 }

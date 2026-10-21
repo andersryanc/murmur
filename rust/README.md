@@ -10,7 +10,7 @@ eval. The crates and the interfaces between them are described in [CONTRACTS.md]
 | `murmur-stt` | Parakeet TDT 0.6B v3 (int8) on the CPU through sherpa-onnx; downloads the model on first use |
 | `murmur-audio` | Mic capture with cpal, resampled to 16 kHz; sound playback |
 | `murmur-platform` | Hotkey, paste, permissions, frontmost app. macOS is done; Windows and Linux are stubs |
-| `murmur` | The tray app: menu, recording pill, dictation queue, startup |
+| `murmur` | The tray app: menu, recording pill, Dictionary window, dictation queue, launch at login |
 
 ## macOS
 
@@ -31,5 +31,4 @@ tail -f ~/Library/Logs/Murmur/murmur.log
 
 ## Not yet
 
-The Dictionary window (Dictionary… opens the JSON), launch at login,
-Windows and Linux platform code, and the eval.
+Linux daemon and install (the platform layer, control socket and Omarchy plugin are in place), Windows, and the eval.

@@ -1,16 +1,19 @@
 //! Murmur: hold a key, speak, and cleaned-up text is pasted at the cursor.
 //!
-//! A tray app (menu bar on macOS, notification area on Windows, AppIndicator on Linux) whose
-//! only window is the recording pill, which never takes focus. The event loop runs on the main thread, as AppKit requires; the hotkey tap, model
-//! loading and the dictation queue run on their own threads and report back through it.
+//! A tray app (menu bar on macOS, notification area on Windows, AppIndicator on Linux). Its
+//! windows are the recording pill, which never takes focus, and the Dictionary window. The event
+//! loop runs on the main thread, as AppKit requires; the hotkey tap, model loading and the
+//! dictation queue run on their own threads and report back through it.
 
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod app;
 mod background;
 mod demo;
+mod dictionary_window;
 mod icon;
 mod logging;
+mod login_item;
 mod menu;
 mod pill;
 mod pipeline;
@@ -56,10 +59,10 @@ fn main() {
 
     let proxy = event_loop.create_proxy();
     let mut app: Option<App> = None;
-    event_loop.run(move |event, _, control_flow| {
+    event_loop.run(move |event, target, control_flow| {
         match event {
             // The tray has to be made once the loop is running (macOS needs the app launched).
-            Event::NewEvents(StartCause::Init) => app = Some(App::start(proxy.clone())),
+            Event::NewEvents(StartCause::Init) => app = Some(App::start(proxy.clone(), target)),
             Event::NewEvents(StartCause::ResumeTimeReached { .. }) => {
                 if let Some(app) = &mut app {
                     app.timer_fired();
@@ -67,7 +70,12 @@ fn main() {
             }
             Event::UserEvent(event) => {
                 if let Some(app) = &mut app {
-                    app.handle(event);
+                    app.handle(event, target);
+                }
+            }
+            Event::WindowEvent { window_id, event, .. } => {
+                if let Some(app) = &mut app {
+                    app.window_event(window_id, &event);
                 }
             }
             Event::LoopDestroyed => {

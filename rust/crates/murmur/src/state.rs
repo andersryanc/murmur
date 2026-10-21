@@ -12,6 +12,8 @@ use murmur_stt::Transcriber;
 use tray_icon::menu::MenuId;
 
 pub type Proxy = tao::event_loop::EventLoopProxy<AppEvent>;
+/// What windows are made with; only lent out while the event loop is handling an event.
+pub type Target = tao::event_loop::EventLoopWindowTarget<AppEvent>;
 
 pub enum AppEvent {
     Hotkey(HotkeyEvent),
@@ -38,6 +40,8 @@ pub enum AppEvent {
     Timing(Timing),
     /// A queued dictation finished, whether or not anything was pasted.
     JobDone,
+    /// A message (JSON) from the Dictionary window's page.
+    Dictionary(String),
 }
 
 /// Where startup has got to. Recording and processing are tracked separately (see `App`),

@@ -22,8 +22,23 @@ arboard = "3.7.0"
 simplelog = "0.12.2"
 # Glyph outlines and coverage for the recording pill's text, from the system UI font.
 ab_glyph = "0.2.32"
+# Messages between the Dictionary window's page and the app.
+serde.workspace = true
+serde_json.workspace = true
+
+# The Dictionary window: a web view (WKWebView, WebView2) in a tao window. Linux opens the JSON in
+# an editor instead, so it doesn't need WebKitGTK.
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+wry = { version = "0.57.0", default-features = false, features = ["os-webview"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+# Launch at Login: registers the app bundle as a login item.
+objc2-service-management = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "objc2",
+    "objc2-foundation",
+    "SMAppService",
+] }
 # Only to read the microphone permission state for the menu's warning.
 objc2-av-foundation = { version = "0.3.2", default-features = false, features = [
     "std",
@@ -42,9 +57,11 @@ objc2-app-kit = { version = "0.3.2", default-features = false, features = [
     "NSGraphics",
     "NSPanel",
     "NSResponder",
+    "NSRunningApplication",
     "NSScreen",
     "NSView",
     "NSWindow",
+    "NSWorkspace",
 ] }
 objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFData"] }
 objc2-core-graphics = { version = "0.3.2", default-features = false, features = [

@@ -53,11 +53,25 @@ pub fn open_microphone_settings() {
 
 /// Opens a text file in the user's editor. On macOS `open -t` picks the default *text* editor,
 /// since the default app for `.json` is often Xcode or a browser.
+#[allow(dead_code)] // Only used where there's no Dictionary window (Linux).
 pub fn open_in_editor(path: &Path) {
     #[cfg(target_os = "macos")]
     spawn(Command::new("/usr/bin/open").arg("-t").arg(path));
     #[cfg(not(target_os = "macos"))]
     open(&path.to_string_lossy());
+}
+
+/// Shows a file selected in Finder or Explorer; elsewhere, opens the folder it's in.
+#[allow(dead_code)] // Linux has no Dictionary window to call it.
+pub fn reveal(path: &Path) {
+    #[cfg(target_os = "macos")]
+    spawn(Command::new("/usr/bin/open").arg("-R").arg(path));
+    #[cfg(target_os = "windows")]
+    spawn(Command::new("explorer").arg(format!("/select,{}", path.display())));
+    #[cfg(all(unix, not(target_os = "macos")))]
+    if let Some(dir) = path.parent() {
+        open(&dir.to_string_lossy());
+    }
 }
 
 /// Opens a URL or file with whatever the OS associates with it.
