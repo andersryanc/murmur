@@ -80,6 +80,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
+# The hardened runtime only loads libraries signed by the app's own Team ID, and a self-signed
+# certificate has none, so dyld would refuse the bundled sherpa-onnx dylibs ("different Team
+# IDs"). disable-library-validation lifts that; the libraries are still signed and sealed in.
 ENTITLEMENTS="$ROOT/target/Murmur.entitlements"
 cat > "$ENTITLEMENTS" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -87,6 +90,8 @@ cat > "$ENTITLEMENTS" <<PLIST
 <plist version="1.0">
 <dict>
 	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<key>com.apple.security.cs.disable-library-validation</key>
 	<true/>
 </dict>
 </plist>
