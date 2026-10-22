@@ -13,11 +13,23 @@ Hyprland key bind ─▶ murmur start/stop ─▶ daemon ─▶ ALSA (pipewire-a
 - **The on-screen pill** (like the Mac pill) is an [Omarchy shell](https://omarchy.org) plugin in [`omarchy-plugin/`](omarchy-plugin). It shows the mic level while you speak, "Murmuring…" while it works, and any problem for a moment afterwards.
 - **The bar menu** (like the Mac menu-bar menu) is in the same plugin: a mic icon in the Omarchy bar that turns red while recording and dims when the daemon isn't running. Click it for the cleanup mode and local model, the microphone, the sound effects, the last five dictations (click one to copy it), the Dictionary, and starting, restarting or quitting the daemon.
 
-This replaces the Swift Linux build (`Linux/` on the `linux-omarchy-setup` branch). It reads that build's `~/.config/murmur/config.json` and model folder as they are, so switching needs no setup beyond installing.
+This replaces the Swift Linux build (`Linux/`, removed from the repo; it's in git history before the Rust rewrite). It reads that build's `~/.config/murmur/config.json` and model folder as they are, so switching needs no setup beyond installing.
 
 ## Status
 
-> **For the agent picking this up on the Linux machine:** this was built on a Mac and checked in Docker (Debian bookworm, x86_64 under emulation). Nothing here has run on Hyprland, PipeWire or real hardware yet. Work through [Setup](#setup), then the [Testing checklist](#testing-checklist), and fix what breaks.
+Tested on an Omarchy machine (Hyprland, PipeWire). Confirmed there (October 2026):
+
+- Recording from the real microphone, with the pill's level meter following your voice.
+- The start and stop sounds.
+- Pasting with `wl-copy` + `wtype` into a browser text field, a terminal and a chat app.
+- The Omarchy pill against this daemon, including two quick dictations showing two cards.
+
+Not confirmed on hardware yet (checklist step in brackets):
+
+- Picking a microphone by node name from the bar menu [5]. It works in Docker, below.
+- The API key from `secret-tool` rather than `ANTHROPIC_API_KEY`.
+- `install.sh`, the Hyprland bindings and autostart [13].
+- The pill reconnecting after a daemon restart [8], taps pasting nothing [11], the first word not being clipped [10], and `notify-send` notices without the pill [12].
 
 Checked in Docker (Rust 1.99, Debian bookworm, x86_64):
 
@@ -25,13 +37,6 @@ Checked in Docker (Rust 1.99, Debian bookworm, x86_64):
 - `murmur transcribe <clip> --no-cleanup` gives a correct transcript with the model folder the Mac app downloaded.
 - The daemon: `murmur status`, a second daemon refusing to start, `murmur start` with no microphone (a clean error reply, and a notice to watchers), a socket watcher seeing the state and notices, `murmur doctor`, `--help`, and shutdown on SIGTERM (the socket file is removed).
 - Picking a microphone by PipeWire node name (PipeWire 0.3.65 with WirePlumber and pipewire-alsa in the container, arm64): with two virtual sources, a tone and silence, the node name decides which one is recorded and `pw-link` shows the stream linked to it; no setting records the default source, and a name that doesn't exist falls back to the default.
-
-Not tested yet (needs the Omarchy machine):
-
-- Recording from a real microphone through ALSA and pipewire-alsa, and the start/stop sounds.
-- Pasting with `wl-copy` + `wtype`, `hyprctl` window classes, `notify-send`, and the API key from `secret-tool`.
-- The Omarchy pill against this daemon (the wire format is unchanged from the Swift daemon, which it was tested with).
-- `install.sh`, the Hyprland bindings and autostart.
 
 **T2 MacBooks:** the built-in mic records about 30 dB too quietly and with a DC offset, so the level meter stays flat and every recording looks like speech (a tap gets transcribed). There's no hardware gain to raise; fix it system-wide with a PipeWire filter that removes the offset and boosts the mic.
 
