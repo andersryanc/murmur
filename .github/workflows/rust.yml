@@ -52,22 +52,20 @@ jobs:
         with:
           workspaces: rust
 
-      # sherpa-onnx's build script downloads its prebuilt libraries into target/, and rust-cache
-      # prunes them before saving. A restored cache skips the build script, so the macOS link
-      # (shared libraries there) then fails with "library 'sherpa-onnx-c-api' not found". This
-      # step comes after rust-cache so that its save, run in reverse order, comes before that
-      # pruning.
-      - uses: actions/cache@v4
-        id: sherpa
-        with:
-          path: rust/target/sherpa-onnx-prebuilt
-          key: sherpa-onnx-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust/Cargo.lock') }}
-
-      # Without them (a first run, or this cache evicted while rust-cache's remains), make the
-      # build script run again and download them.
-      - name: Forget sherpa-onnx's build if its libraries aren't cached
-        if: steps.sherpa.outputs.cache-hit != 'true'
-        run: cargo clean -p sherpa-onnx-sys
+      # sherpa-onnx's build script would download its prebuilt libraries into target/, which
+      # rust-cache prunes before saving: a run that restored the cache skipped the build script
+      # and the macOS link failed with "library 'sherpa-onnx-c-api' not found". Download them
+      # here instead, outside target/, and point the build script at them. The archive is the
+      # one the build script would pick: shared libraries on macOS, static on Linux.
+      - name: Download sherpa-onnx
+        run: |
+          version=$(grep -A1 '^name = "sherpa-onnx-sys"' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')
+          kind=$([[ $RUNNER_OS == macOS ]] && echo osx-arm64-shared-lib || echo linux-x64-static-lib)
+          archive=sherpa-onnx-v$version-$kind
+          mkdir -p "$RUNNER_TEMP/sherpa-onnx"
+          curl -fsSL --retry 3 "https://github.com/k2-fsa/sherpa-onnx/releases/download/v$version/$archive.tar.bz2" \
+            | tar -xj -C "$RUNNER_TEMP/sherpa-onnx"
+          echo "SHERPA_ONNX_LIB_DIR=$RUNNER_TEMP/sherpa-onnx/$archive/lib" >> "$GITHUB_ENV"
 
       - name: Format
         run: cargo fmt --all --check
