@@ -106,12 +106,10 @@ Panel {
     root.close()
   }
 
+  // The Dictionary card is in the plugin's pill panel (Murmur.qml), the one always loaded.
   function openDictionary() {
-    var path = Util.shellQuote(root.info.dictionary)
-    Quickshell.execDetached(["bash", "-c",
-      "[ -e " + path + " ] || printf '{\\n  \"replacements\": [],\\n  \"words\": []\\n}\\n' > " + path
-      + "; exec omarchy-launch-editor " + path])
     root.close()
+    Quickshell.execDetached(["omarchy-shell", "shell", "call", "plyhdrn.murmur", "openDictionary", ""])
   }
 
   function startDaemon() {

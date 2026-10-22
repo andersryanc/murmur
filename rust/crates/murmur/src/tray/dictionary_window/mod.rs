@@ -5,7 +5,7 @@
 //! page serves both. The page does all the editing; the Rust side only reads, writes and watches
 //! `dictionary.json`, which stays the source of truth: the dictation pipeline re-reads it every
 //! time, and the user can still edit it by hand. (Linux has no tray app; there the Dictionary is
-//! the JSON file, edited by hand.)
+//! a card in the Omarchy plugin, `linux/omarchy-plugin/Dictionary.qml`, ported from this page.)
 //!
 //! `MURMUR_OPEN_DICTIONARY=1` runs just this window (no hotkey tap, tray or speech model) and
 //! quits when it closes, for working on it beside a real Murmur. `MURMUR_DICTIONARY=<file>` edits

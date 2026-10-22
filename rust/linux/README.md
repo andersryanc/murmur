@@ -115,6 +115,15 @@ bind = , Alt_R, exec, ~/.local/bin/murmur start
 bindr = ALT, Alt_R, exec, ~/.local/bin/murmur stop
 ```
 
+**On a MacBook, Fn works too** (like the Mac app's default). Linux's Apple keyboard driver reports Fn as its own key, code 472 to Hyprland, and it isn't a modifier, so neither binding needs one:
+
+```lua
+o.bind("code:472", "Start dictation (Murmur)", murmur .. " start")
+o.bind("code:472", "Stop dictation (Murmur)", murmur .. " stop", { release = true })
+```
+
+Holding Fn for media keys (Fn+F1 and so on, with `hid_apple`'s `fnmode=2`) also starts a recording; it's discarded as `no speech` when you let go.
+
 If the release doesn't fire, drop the `ALT` from the release binding, or use toggle mode, where one press starts and the next press finishes (`murmur toggle` on one key).
 
 Check what's free first with `hyprctl binds`. Reload with `hyprctl reload`, then check `hyprctl configerrors`. Start the daemon once by hand instead of logging out: `hyprctl dispatch 'hl.dsp.exec_cmd("~/.local/bin/murmur daemon")'` (Lua) or `hyprctl dispatch exec "~/.local/bin/murmur daemon"` (`.conf`).
@@ -147,7 +156,7 @@ It checks each tool, pipewire-alsa, the model, the API key (or the Ollama model)
 - **threads**: CPU threads for speech-to-text (default: the number of cores, up to 8; the Swift build defaulted to 4).
 - **model**: a different sherpa-onnx Parakeet folder (default `~/.local/share/murmur/models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8`). A folder set here is never downloaded into.
 
-**Dictionary:** `~/.config/murmur/dictionary.json`, the same format as on the Mac (`~/Library/Application Support/Murmur/dictionary.json`), so you can copy that file over. Changes apply on the next dictation.
+**Dictionary:** `~/.config/murmur/dictionary.json`, the same format as on the Mac (`~/Library/Application Support/Murmur/dictionary.json`), so you can copy that file over. Changes apply on the next dictation. The bar menu's Dictionary button opens it in a card over the screen, a port of the Mac Dictionary window ([`Dictionary.qml`](omarchy-plugin/Dictionary.qml)): Words and Replacements tabs, search, Return to add, double-click or Return to edit a row, Delete to remove, Ctrl+Z to undo, Esc to back out. It saves the file after each change and picks up edits made to it by hand. To open it from a key binding, run `omarchy-shell shell call plyhdrn.murmur openDictionary ""`.
 
 **Cleanup style per app:** the focused window's class picks chat, email, notes or code style (see `TargetContext::from_window_class` in [`context.rs`](../crates/murmur-core/src/context.rs)). Find a window's class with `hyprctl activewindow`. Terminals get Ctrl+Shift+V instead of Ctrl+V (`is_terminal` in [`murmur-platform`'s `linux.rs`](../crates/murmur-platform/src/linux.rs)).
 
