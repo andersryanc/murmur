@@ -17,10 +17,14 @@ are in [CONTRACTS.md](CONTRACTS.md); setup for using Squawk is in the [README](R
 ## macOS
 
 ```bash
+scripts/install-macos.sh     # bundle-macos.sh, then move the app to /Applications and relaunch it
 scripts/bundle-macos.sh      # release build, signed target/Squawk.app ("Squawk Self-Signed", or SQUAWK_SIGN_IDENTITY)
-open target/Squawk.app
+open target/Squawk.app       # try a build without installing it
 tail -f ~/Library/Logs/Squawk/squawk.log
 ```
+
+Quit the installed Squawk before opening one from `target/`: both have the same bundle ID and
+grab the same hotkey.
 
 - The bundle ID is `com.plyhdrn.squawk`. Settings live in
   `~/Library/Application Support/Squawk/settings.json`, the Dictionary in `dictionary.json` beside

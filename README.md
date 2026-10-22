@@ -21,7 +21,7 @@ Most of the quality comes from the cleanup pass. It fixes misheard words, drops 
 |---|---|
 | [`crates/`](crates) | One Rust workspace for both platforms: the macOS menu-bar app and the Linux daemon share the dictation engine, cleanup prompt, Dictionary and speech model. The crates are described in [`DEVELOPMENT.md`](DEVELOPMENT.md) and [`CONTRACTS.md`](CONTRACTS.md). |
 | [`linux/`](linux) | Linux setup: the install script, Hyprland bindings and the Omarchy pill and bar menu. Start with [`linux/README.md`](linux/README.md). |
-| [`scripts/`](scripts) | Building the macOS app bundle, and checking the Linux build from a Mac. |
+| [`scripts/`](scripts) | Building and installing the macOS app, and checking the Linux build from a Mac. |
 | [`eval/`](eval) | Recordings of your voice for the [eval](#eval-harness), and its reports. Both stay local. |
 
 Squawk is open source and isn't distributed as a prebuilt app: you build it on the machine that runs it.
@@ -31,10 +31,11 @@ Squawk is open source and isn't distributed as a prebuilt app: you build it on t
 You need [Rust](https://rustup.rs) (`rustup default stable`), the Xcode Command Line Tools (`xcode-select --install`), and a self-signed code-signing certificate, which takes a minute to make and needs no Apple account (see [Signing](#signing)).
 
 ```bash
-scripts/bundle-macos.sh   # release build, signed target/Squawk.app
-open target/Squawk.app
+scripts/install-macos.sh   # release build, signed, moved to /Applications/Squawk.app and launched
 tail -f ~/Library/Logs/Squawk/squawk.log
 ```
+
+The installed app is outside `target/`, so `cargo clean` leaves it alone. It goes to `~/Applications` instead if you can't write to `/Applications`. Run the script again to update; it quits the running Squawk and opens the new one.
 
 The first launch downloads the Parakeet model (~480 MB). Allow **Microphone** and turn on Squawk under **System Settings › Privacy & Security › Accessibility**. Accessibility lets Squawk see the push-to-talk key and paste at your cursor. Both permissions persist across rebuilds as long as you sign with the same certificate. Store your [API key](#api-key) for Claude cleanup. The menu's **Launch at Login** starts it with your Mac.
 
@@ -62,7 +63,7 @@ Hold **fn** (changeable in the menu), speak, and release. The text is pasted whe
 macOS ties the Microphone and Accessibility permissions to the certificate an app is signed with, so Squawk has to be signed, and with the same certificate every time, or macOS asks again after each rebuild. A self-signed certificate does that: it's only trusted on the Mac that made it, which is all a build you run yourself needs.
 
 1. In **Keychain Access**, choose **Keychain Access › Certificate Assistant › Create a Certificate…**. Name it `Squawk Self-Signed`, set **Identity Type** to **Self-Signed Root** and **Certificate Type** to **Code Signing**, and click **Create**.
-2. Run `scripts/bundle-macos.sh`, which signs with `Squawk Self-Signed` by default. The first signing may ask to use the certificate's key; choose **Always Allow**.
+2. Run `scripts/install-macos.sh`, which signs with `Squawk Self-Signed` by default. The first signing may ask to use the certificate's key; choose **Always Allow**.
 
 Keep the certificate: a new one, even with the same name, makes macOS ask for the permissions again. To sign with a different certificate you already have, such as an Apple Development one, set `SQUAWK_SIGN_IDENTITY` to its name; the script lists the ones in your Keychain if it can't find it.
 

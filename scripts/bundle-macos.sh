@@ -1,5 +1,6 @@
 #!/bin/bash
-# Builds Squawk in release and assembles a signed target/Squawk.app.
+# Builds Squawk in release and assembles a signed target/Squawk.app. scripts/install-macos.sh
+# runs this and moves the app to /Applications.
 #
 # The bundle ID is com.plyhdrn.squawk. macOS ties the Accessibility and Microphone grants to it,
 # so changing it means granting them again.

@@ -21,10 +21,6 @@ Ideas for what's next, roughly in priority order. Nothing here is committed to; 
 
 Squawk is build-it-yourself: no prebuilt releases, Developer ID or notarization.
 
-## macOS
-
-- [ ] **An install script.** Run `scripts/bundle-macos.sh` and copy the app to `~/Applications`, so it runs from a stable path rather than `target/`.
-
 ## Linux
 
 - [ ] **Finish the Omarchy checklist.** Recording, sounds, pasting and the pill are confirmed on hardware; the rest is listed under "Status" in [`linux/README.md`](linux/README.md#status) (microphone choice, keyring, install and autostart, taps, notices).
