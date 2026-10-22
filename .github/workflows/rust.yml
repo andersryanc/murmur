@@ -74,5 +74,9 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       # Tests that need the speech model, a Claude key or a desktop are #[ignore]d and skipped.
+      # On macOS the test binaries load sherpa-onnx's dylibs at run time. The build script only
+      # copies them into target/ when it runs, which a restored cache skips, so point dyld at
+      # the downloaded folder. Set here rather than in GITHUB_ENV: macOS strips DYLD_* variables
+      # when it starts /bin/bash, but not when bash starts cargo. Linux links statically.
       - name: Test
-        run: cargo test --workspace --locked
+        run: DYLD_FALLBACK_LIBRARY_PATH="$SHERPA_ONNX_LIB_DIR" cargo test --workspace --locked
