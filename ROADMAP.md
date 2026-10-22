@@ -31,7 +31,7 @@ Murmur is build-it-yourself: no prebuilt releases, Developer ID or notarization.
 
 ## Linux
 
-- [ ] **Test on the Omarchy machine.** Work through the testing checklist in [`rust/linux/README.md`](rust/linux/README.md) (mic, paste, key bindings, keyring, latency).
+- [ ] **Finish the Omarchy checklist.** Recording, sounds, pasting and the pill are confirmed on hardware; the rest is listed under "Status" in [`rust/linux/README.md`](rust/linux/README.md#status) (microphone choice, keyring, install and autostart, taps, notices).
 - [ ] **Packaging.** An AUR `PKGBUILD`, so installing doesn't need the repo.
 
 ## Windows
