@@ -10,6 +10,7 @@ mod bench;
 mod config;
 mod daemon;
 mod doctor;
+mod settings;
 mod transcribe;
 
 use std::process::ExitCode;
@@ -30,6 +31,12 @@ murmur: push-to-talk dictation for Linux (Hyprland)
   murmur toggle                Start, or finish if already recording. For a single key binding.
   murmur cancel                Throw away the current recording.
   murmur status                loading, ready, recording or processing.
+  murmur settings              Print the settings, microphones and recent dictations as JSON
+                               (what the Omarchy bar menu shows).
+  murmur set <key> <value>     Change a setting: cleanup claude|ollama|off, ollamaModel <name>,
+                               microphone <PipeWire node>|default, sounds wood|soft|chime|bubble|off.
+  murmur recent                The latest dictations, newest first, as JSON.
+  murmur reload                Have the daemon re-read the settings now (`set` does this).
   murmur transcribe <file.wav> [--context plain|chat|email|notes|code] [--no-cleanup]
                                Transcribe and clean up a WAV file, without the daemon.
   murmur bench [--model <ollama model>] [--runs 3]
@@ -63,6 +70,8 @@ pub fn run(args: Vec<String>) -> ExitCode {
         "transcribe" => transcribe::run(rest),
         "bench" => bench::run(rest),
         "doctor" => return doctor::run(),
+        "settings" => settings::show(),
+        "set" => settings::set(rest),
         "help" | "--help" | "-h" => {
             print!("{}", usage());
             return ExitCode::SUCCESS;

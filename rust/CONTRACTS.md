@@ -149,7 +149,7 @@ Plain text, one line each way. The plugin parses it, so the wire format doesn't 
 ```rust
 pub fn socket_path() -> PathBuf;   // $XDG_RUNTIME_DIR/murmur/murmur.sock, else /tmp/murmur-<uid>/murmur/murmur.sock
                                    // (the same path the plugin computes)
-pub enum Command { Start, Stop, Toggle, Cancel, Status }   // "start", …; ALL, as_str(), parse(), Display
+pub enum Command { Start, Stop, Toggle, Cancel, Status, Recent, Reload }   // "start", …; ALL, as_str(), parse(), Display
 // The daemon's replies (free text, for people): start → "recording" | "already recording" |
 // "error: …"; stop → "processing" | "queued" | "no speech" | "not recording"; cancel →
 // "cancelled" | "not recording"; status → "loading" | "ready" | "recording" | "processing" |
@@ -250,7 +250,8 @@ pub fn cleaner(mode: CleanupMode, ollama_model: &str, vocabulary: Vec<String>)
   `prepare_local_model`). Engine events arrive through the tao event loop; the pill, icon and
   status line read `is_recording`, `queued` and `model_state` when they redraw.
 - **Linux: the CLI and daemon** (`src/linux`). The daemon's control-socket handler owns the
-  engine and turns `start`/`stop`/`toggle`/`cancel`/`status` into its calls. Engine events go to
+  engine and turns `start`/`stop`/`toggle`/`cancel`/`status` into its calls; `recent` replies
+  with the last five dictations (JSON) and `reload` re-reads the settings for the bar menu. Engine events go to
   the main thread, which broadcasts `queue`, `state`, `level` and `notice` lines to watchers;
   a notice nobody watched goes to `notify()`. `config.json`'s `model` and `threads` become
   `Options`.

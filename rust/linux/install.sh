@@ -12,18 +12,37 @@ mkdir -p ~/.local/bin
 install -m 755 target/release/murmur ~/.local/bin/murmur
 echo "Installed ~/.local/bin/murmur"
 
-# The on-screen pill is an Omarchy shell plugin. A symlink there (for working on the plugin)
-# is left alone. It's enabled on the first install only, so disabling it sticks.
+# The on-screen pill and the bar menu are one Omarchy shell plugin. A symlink there (for working
+# on the plugin) is left alone. It's enabled on the first install only, so disabling it sticks.
 plugin=~/.config/omarchy/plugins/plyhdrn.murmur
 if command -v omarchy-shell >/dev/null && [[ ! -L $plugin ]]; then
   first=$([[ -d $plugin ]] || echo yes)
-  rm -rf "$plugin" && mkdir -p "$plugin"
+  # The bar menu came after the pill, whose install listed the plugin under `plugins` in
+  # shell.json. The shell counts that as enabled and won't also put it on the bar, so an install
+  # from before the menu is moved onto the bar once.
+  new_widget=$([[ -n $first ]] || grep -q barWidget "$plugin/manifest.json" || echo yes)
+  before=$(ls "$plugin" 2>/dev/null || true)
+  # Copied over in place: the shell caches the folder's listing, and a folder deleted and made
+  # again leaves it unable to find the new files until it restarts.
+  mkdir -p "$plugin"
+  for file in "$plugin"/*; do
+    [[ -e linux/omarchy-plugin/${file##*/} ]] || rm -f "$file"
+  done
   cp linux/omarchy-plugin/* "$plugin/"
-  omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
-  if [[ -n $first ]]; then
-    sleep 1
-    omarchy plugin enable plyhdrn.murmur >/dev/null 2>&1 \
-      || echo "Enable the on-screen pill with: omarchy plugin enable plyhdrn.murmur"
+  if [[ -z $first && $(ls "$plugin") != "$before" ]]; then
+    # It reloads changed files by itself, but not added or renamed ones.
+    omarchy restart shell >/dev/null 2>&1 || true
+  else
+    omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
+  fi
+  if [[ -n $first || -n $new_widget ]]; then
+    for _ in $(seq 50); do
+      omarchy-shell shell listPlugins 2>/dev/null | grep -q plyhdrn.murmur && break
+      sleep 0.2
+    done
+    [[ -n $first ]] || omarchy plugin disable plyhdrn.murmur >/dev/null 2>&1 || true
+    omarchy plugin enable plyhdrn.murmur --section right --before omarchy.tray >/dev/null 2>&1 \
+      || echo "Enable the on-screen pill and bar menu with: omarchy plugin enable plyhdrn.murmur --section right"
   fi
   echo "Installed the Omarchy plugin to $plugin"
 fi

@@ -115,7 +115,7 @@ fn pattern(phrase: &str) -> Option<Regex> {
 
 /// Writes to a temporary file beside `path`, then renames it over `path`, so a crash never
 /// leaves a half-written file.
-pub(crate) fn write_atomically(path: &Path, data: &[u8]) -> anyhow::Result<()> {
+pub fn write_atomically(path: &Path, data: &[u8]) -> anyhow::Result<()> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }

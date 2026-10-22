@@ -11,6 +11,7 @@ Hyprland key bind ─▶ murmur start/stop ─▶ daemon ─▶ ALSA (pipewire-a
 - **`murmur start`** and **`murmur stop`** are bound to a key's press and release in Hyprland. Wayland doesn't let apps watch keys globally, so the compositor does it.
 - The recording, queue, cleanup, Dictionary, start/stop sounds and per-app style are the shared [`murmur-engine`](../crates/murmur-engine) crate, the same code the Mac tray app runs. Your Mac Dictionary file works here unchanged.
 - **The on-screen pill** (like the Mac pill) is an [Omarchy shell](https://omarchy.org) plugin in [`omarchy-plugin/`](omarchy-plugin). It shows the mic level while you speak, "Murmuring…" while it works, and any problem for a moment afterwards.
+- **The bar menu** (like the Mac menu-bar menu) is in the same plugin: a mic icon in the Omarchy bar that turns red while recording and dims when the daemon isn't running. Click it for the cleanup mode and local model, the microphone, the sound effects, the last five dictations (click one to copy it), the Dictionary, and starting, restarting or quitting the daemon.
 
 This replaces the Swift Linux build (`Linux/` on the `linux-omarchy-setup` branch). It reads that build's `~/.config/murmur/config.json` and model folder as they are, so switching needs no setup beyond installing.
 
@@ -70,7 +71,7 @@ From the repository root:
 rust/linux/install.sh
 ```
 
-This builds a release binary and installs `~/.local/bin/murmur`. On Omarchy it also installs the on-screen pill plugin to `~/.config/omarchy/plugins/plyhdrn.murmur/` and enables it the first time (`omarchy plugin disable plyhdrn.murmur` turns it off). Run it again after pulling changes; it restarts the daemon if one is running.
+This builds a release binary and installs `~/.local/bin/murmur`. On Omarchy it also installs the pill and bar menu plugin to `~/.config/omarchy/plugins/plyhdrn.murmur/` and puts it on the bar, left of the tray, the first time (`omarchy plugin disable plyhdrn.murmur` turns it off; drag the icon to move it). Run it again after pulling changes; it restarts the daemon if one is running.
 
 The speech model (~480 MB) is downloaded into `~/.local/share/murmur/models/` the first time the daemon starts; `murmur status` says `loading` until it's ready. If the Swift build already downloaded it there, it's used as is.
 
@@ -123,7 +124,7 @@ It checks each tool, pipewire-alsa, the model, the API key (or the Ollama model)
 
 ## Settings
 
-`~/.config/murmur/config.json`, the same file the Swift build used (optional; every field has a default). It's re-read at the start of each dictation, except `model` and `threads`, which apply when the daemon starts.
+`~/.config/murmur/config.json`, the same file the Swift build used (optional; every field has a default). The bar menu changes `cleanup`, `ollamaModel`, `microphone` and `sounds` with `murmur set <key> <value>`, which keeps the rest of the file as it is; you can also edit it by hand. It's re-read at the start of each dictation (and at once after `murmur set`), except `model` and `threads`, which apply when the daemon starts.
 
 ```json
 {
@@ -157,10 +158,11 @@ Work through these on the Linux machine, roughly in order. Each one isolates one
 6. **Sounds:** start and stop each play a short tone, and they don't go to the microphone node.
 7. **Key binding:** hold the key, speak, release. Check that it pastes into a browser text field (Ctrl+V), a terminal (Ctrl+Shift+V), and a chat app (chat style).
 8. **Pill:** while recording the pill shows the level, then "Murmuring…", and two quick dictations show two cards. Stop the daemon (`pkill -x murmur`) and start it again: the pill reconnects.
-9. **First word:** say a short sentence right as you press the key. If the first word is often missing, the microphone is starting too slowly (see Ideas).
-10. **Taps:** tap the key without speaking. Nothing should paste (`murmur stop` replies `no speech`).
-11. **Notices without the pill:** `omarchy plugin disable plyhdrn.murmur`, then dictate with cleanup set to `ollama` and Ollama stopped: a `notify-send` notification says "Cleanup failed, pasted raw text". Re-enable the plugin.
-12. **Autostart:** log out and in; `murmur status` says `ready`.
+9. **Bar menu:** the mic icon turns red while recording. In its menu, pick another sound (it plays as a preview), switch cleanup to Local and back, pick a microphone, and copy a recent dictation; `config.json` keeps any `model` or `threads` you set. Quit dims the icon; Start brings the daemon back.
+10. **First word:** say a short sentence right as you press the key. If the first word is often missing, the microphone is starting too slowly (see Ideas).
+11. **Taps:** tap the key without speaking. Nothing should paste (`murmur stop` replies `no speech`).
+12. **Notices without the pill:** `omarchy plugin disable plyhdrn.murmur`, then dictate with cleanup set to `ollama` and Ollama stopped: a `notify-send` notification says "Cleanup failed, pasted raw text". Re-enable it with `omarchy plugin enable plyhdrn.murmur --section right`.
+13. **Autostart:** log out and in; `murmur status` says `ready`.
 
 When something fails, check `~/.local/state/murmur/murmur.log` first.
 
@@ -180,11 +182,16 @@ The Linux front end is [`crates/murmur/src/linux`](../crates/murmur/src/linux); 
 | `mod.rs` | The CLI: `--help` and dispatch; `start`/`stop`/`toggle`/`cancel`/`status` send one socket command. |
 | `daemon.rs` | Owns the engine, serves socket commands into it, broadcasts its events to watchers, and stops on SIGINT/SIGTERM. |
 | `config.rs` | `config.json`'s `model` and `threads` (the rest is `murmur_core::Settings`). |
+| `settings.rs` | `murmur settings` (one JSON object for the bar menu: status, settings, PipeWire sources from `pw-dump`, Ollama models, recent dictations) and `murmur set`. |
 | `transcribe.rs`, `bench.rs`, `doctor.rs` | The one-shot commands. |
 
 The rest is shared: [`murmur-engine`](../crates/murmur-engine) (recording, queue, cleanup, paste), [`murmur-control`](../crates/murmur-control) (the socket and its line protocol), [`murmur-platform`](../crates/murmur-platform/src/linux.rs) (`hyprctl`, `wl-copy` + `wtype`, `notify-send`) and [`murmur-audio`](../crates/murmur-audio) (ALSA capture, including [`pipewire.rs`](../crates/murmur-audio/src/pipewire.rs) for node names).
 
-The on-screen pill is [`omarchy-plugin/Murmur.qml`](omarchy-plugin/Murmur.qml), a `panel` plugin for the Omarchy shell (Quickshell). It connects to the daemon's socket and sends `watch`; the daemon keeps that connection open and writes one line per event: `state ready|recording|processing`, `queue 2` (dictations waiting to paste, including the one being processed), `level 0.42` (about every 50 ms while recording) and `notice <message>`. While anything is watching, notices go to the pill instead of `notify-send`. To work on the plugin, link it instead of copying it, and the shell reloads it on save (`install.sh` leaves a link alone):
+The on-screen pill is [`omarchy-plugin/Murmur.qml`](omarchy-plugin/Murmur.qml), a `panel` plugin for the Omarchy shell (Quickshell). It connects to the daemon's socket and sends `watch`; the daemon keeps that connection open and writes one line per event: `state ready|recording|processing`, `queue 2` (dictations waiting to paste, including the one being processed), `level 0.42` (about every 50 ms while recording) and `notice <message>`. While anything is watching, notices go to the pill instead of `notify-send`.
+
+The bar menu is [`omarchy-plugin/MurmurBar.qml`](omarchy-plugin/MurmurBar.qml), the same plugin's `bar-widget`. It watches the socket for the icon, runs `murmur settings` when it opens and `murmur set` when something is picked; `set` sends the daemon `reload`, which applies the change at once (loading a newly picked Ollama model, and playing a newly picked sound). The daemon also answers `recent` with its last five dictations as a JSON array.
+
+The shell reloads a plugin's changed files by itself, but not files added, renamed or deleted and made again; `omarchy restart shell` picks those up (`install.sh` does this when the plugin's file list changes). To work on the plugin, link it instead of copying it, and the shell reloads it on save (`install.sh` leaves a link alone):
 
 ```bash
 rm -rf ~/.config/omarchy/plugins/plyhdrn.murmur

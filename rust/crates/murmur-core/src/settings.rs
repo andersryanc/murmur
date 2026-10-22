@@ -92,9 +92,9 @@ fn sounds_to_str<S: serde::Serializer>(sounds: &Option<SoundTheme>, serializer: 
 }
 
 impl Settings {
-    /// `settings.json` in `paths::data_dir()`. On Linux it's `config.json` there instead: Linux
-    /// has no menu, so the file is edited by hand, and the Swift Linux build already wrote that
-    /// file with these same keys (plus `model` and `threads`, which the Linux front end reads
+    /// `settings.json` in `paths::data_dir()`. On Linux it's `config.json` there instead: it's
+    /// also edited by hand (the Omarchy bar menu changes it through `murmur set`, which keeps the
+    /// keys it doesn't know), and the Swift Linux build already wrote that file with these same keys (plus `model` and `threads`, which the Linux front end reads
     /// itself). Reading it in place keeps one file and its documentation, rather than a second
     /// copy that drifts.
     pub fn path() -> PathBuf {

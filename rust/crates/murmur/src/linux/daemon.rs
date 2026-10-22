@@ -8,11 +8,14 @@
 //! broadcasting, so watchers see events in the order they happened. A small thread waits for
 //! the signals, which are blocked everywhere else.
 
+use std::collections::VecDeque;
 use std::process::ExitCode;
 use std::sync::mpsc::{self, Sender};
+use std::sync::{Arc, Mutex};
 
 use murmur_control::{Command, ControlError, Event as Line, Phase, Server};
-use murmur_engine::{Engine, Event, ModelState, Press, Release};
+use murmur_core::{CleanupMode, Settings};
+use murmur_engine::{Engine, Event, ModelState, Press, Release, SOUND_VOLUME};
 
 use super::config;
 use crate::logging;
@@ -25,6 +28,12 @@ enum Message {
     /// SIGINT or SIGTERM.
     Stop(i32),
 }
+
+/// How many dictations `recent` replies with, as the Mac menu lists.
+const RECENT_KEPT: usize = 5;
+
+/// The latest dictations, newest first. The main thread adds them; the server thread reads them.
+type Recent = Arc<Mutex<VecDeque<String>>>;
 
 pub fn run() -> ExitCode {
     logging::init(logging::Output::FileAndStderr);
@@ -69,9 +78,11 @@ pub fn run() -> ExitCode {
             let _ = tx.send(Message::Engine(event));
         })
     };
+    let recent = Recent::default();
     let server = {
         let tx = tx.clone();
-        Server::start(&path, move |command| handle(&mut engine, command, &tx))
+        let recent = recent.clone();
+        Server::start(&path, move |command| handle(&mut engine, command, &tx, &recent))
     };
     let server = match server {
         Ok(server) => server,
@@ -86,6 +97,7 @@ pub fn run() -> ExitCode {
         server,
         recording: false,
         queued: 0,
+        recent,
     };
     for message in rx {
         match message {
@@ -107,7 +119,7 @@ pub fn run() -> ExitCode {
 }
 
 /// Runs one command on the engine (on the server thread) and returns the reply line.
-fn handle(engine: &mut Engine, command: Command, tx: &Sender<Message>) -> String {
+fn handle(engine: &mut Engine, command: Command, tx: &Sender<Message>, recent: &Recent) -> String {
     match command {
         Command::Start => start(engine, tx),
         Command::Stop => stop(engine),
@@ -126,7 +138,41 @@ fn handle(engine: &mut Engine, command: Command, tx: &Sender<Message>) -> String
             ModelState::Failed(message) => format!("error: {message}"),
             ModelState::Ready => phase(engine.is_recording(), engine.queued()).to_string(),
         },
+        Command::Recent => {
+            let recent = recent.lock().unwrap_or_else(|e| e.into_inner());
+            serde_json::to_string(&*recent).unwrap_or_else(|_| "[]".into())
+        }
+        Command::Reload => {
+            reload(engine, config::load().settings);
+            "ok".into()
+        }
     }
+}
+
+/// Applies settings changed in the bar menu, doing what the Mac menu does on the same change:
+/// load a newly picked local model into Ollama, and play a newly picked sound as a preview.
+fn reload(engine: &mut Engine, settings: Settings) {
+    let old = engine.settings();
+    let new_model = settings.cleanup == CleanupMode::Ollama
+        && (old.cleanup != CleanupMode::Ollama || old.ollama_model != settings.ollama_model);
+    if new_model {
+        murmur_engine::prepare_local_model(settings.ollama_model.clone());
+    }
+    if settings.sounds != old.sounds
+        && let Some(theme) = settings.sounds
+    {
+        murmur_audio::play_wav(theme.start_sound(), SOUND_VOLUME);
+    }
+    if settings != *old {
+        log::info!(
+            "Settings changed: cleanup {:?} ({}), microphone {:?}, sounds {:?}",
+            settings.cleanup,
+            settings.ollama_model,
+            settings.microphone,
+            settings.sounds,
+        );
+    }
+    engine.set_settings(settings);
 }
 
 fn start(engine: &mut Engine, tx: &Sender<Message>) -> String {
@@ -174,6 +220,7 @@ struct Watchers {
     server: Server,
     recording: bool,
     queued: usize,
+    recent: Recent,
 }
 
 impl Watchers {
@@ -194,7 +241,12 @@ impl Watchers {
             Event::Notice(text) => self.notice(&text),
             Event::Model(ModelState::Ready) => log::info!("Ready"),
             Event::Model(ModelState::Failed(message)) => self.notice(&message),
-            Event::Dictated(text) => log::info!("Dictated: {text}"),
+            Event::Dictated(text) => {
+                log::info!("Dictated: {text}");
+                let mut recent = self.recent.lock().unwrap_or_else(|e| e.into_inner());
+                recent.push_front(text);
+                recent.truncate(RECENT_KEPT);
+            }
             Event::Level(_) | Event::Model(ModelState::Loading(_)) | Event::Timing(_) | Event::ApiKey(_) => {}
         }
     }
@@ -269,11 +321,15 @@ mod tests {
     #[test]
     fn idle_engine_answers_commands() {
         let (tx, rx) = mpsc::channel();
-        let mut engine = Engine::idle(murmur_core::Settings::default(), "Downloading speech model…");
-        assert_eq!(handle(&mut engine, Command::Status, &tx), "loading");
-        assert_eq!(handle(&mut engine, Command::Stop, &tx), "not recording");
-        assert_eq!(handle(&mut engine, Command::Cancel, &tx), "not recording");
-        let reply = handle(&mut engine, Command::Toggle, &tx);
+        let recent = Recent::default();
+        let mut engine = Engine::idle(Settings::default(), "Downloading speech model…");
+        assert_eq!(handle(&mut engine, Command::Status, &tx, &recent), "loading");
+        assert_eq!(handle(&mut engine, Command::Stop, &tx, &recent), "not recording");
+        assert_eq!(handle(&mut engine, Command::Cancel, &tx, &recent), "not recording");
+        assert_eq!(handle(&mut engine, Command::Recent, &tx, &recent), "[]");
+        recent.lock().unwrap().push_front("two\nlines".into());
+        assert_eq!(handle(&mut engine, Command::Recent, &tx, &recent), r#"["two\nlines"]"#);
+        let reply = handle(&mut engine, Command::Toggle, &tx, &recent);
         assert!(reply.starts_with("error: Murmur is still starting"), "{reply}");
         assert!(matches!(rx.try_recv(), Ok(Message::Notice(_))));
     }

@@ -46,10 +46,24 @@ pub enum Command {
     Cancel,
     /// Reply with the current [`Phase`].
     Status,
+    /// Reply with the latest dictations, newest first, as a JSON array of strings (for the
+    /// Omarchy bar menu's Recent list).
+    Recent,
+    /// Re-read the settings file now rather than at the next dictation, after the bar menu
+    /// changed it. Replies `ok`.
+    Reload,
 }
 
 impl Command {
-    pub const ALL: [Command; 5] = [Self::Start, Self::Stop, Self::Toggle, Self::Cancel, Self::Status];
+    pub const ALL: [Command; 7] = [
+        Self::Start,
+        Self::Stop,
+        Self::Toggle,
+        Self::Cancel,
+        Self::Status,
+        Self::Recent,
+        Self::Reload,
+    ];
 
     pub fn as_str(self) -> &'static str {
         match self {
@@ -58,6 +72,8 @@ impl Command {
             Self::Toggle => "toggle",
             Self::Cancel => "cancel",
             Self::Status => "status",
+            Self::Recent => "recent",
+            Self::Reload => "reload",
         }
     }
 
