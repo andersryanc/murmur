@@ -6,7 +6,7 @@ change it (and its callers) together. Every crate keeps to its own folder.
 All audio is 16 kHz mono `f32` in -1...1. Errors are `anyhow::Result`. No async runtime: blocking
 calls, run off the main thread by the app.
 
-## murmur-core (no OS-specific code beyond file locations and the key store)
+## squawk-core (no OS-specific code beyond file locations and the key store)
 
 ```rust
 // context.rs
@@ -40,7 +40,7 @@ pub struct OllamaCleaner { … }   // OllamaCleaner::new(model: String, vocabula
 impl OllamaCleaner { pub fn installed_models() -> Vec<String>; }
 
 // api_key.rs
-pub const SERVICE: &str = "com.plyhdrn.murmur";
+pub const SERVICE: &str = "com.plyhdrn.squawk";
 pub const ACCOUNT: &str = "anthropic-api-key";
 pub fn load() -> Option<String>;  // ANTHROPIC_API_KEY, then the OS key store
 
@@ -66,9 +66,9 @@ pub enum SoundTheme { Wood, Soft, Chime, Bubble }   // serde lowercase; ALL, lab
 impl SoundTheme { pub fn start_sound(self) -> Vec<u8>; pub fn stop_sound(self) -> Vec<u8>; } // 16-bit mono WAV
 
 // paths.rs
-pub fn data_dir() -> PathBuf;    // macOS ~/Library/Application Support/Murmur, Windows %APPDATA%\Murmur,
-                                 // Linux $XDG_CONFIG_HOME/murmur (where earlier versions kept it)
-pub fn models_dir() -> PathBuf;  // macOS/Windows data_dir()/models, Linux $XDG_DATA_HOME/murmur/models
+pub fn data_dir() -> PathBuf;    // macOS ~/Library/Application Support/Squawk, Windows %APPDATA%\Squawk,
+                                 // Linux $XDG_CONFIG_HOME/squawk (where earlier versions kept it)
+pub fn models_dir() -> PathBuf;  // macOS/Windows data_dir()/models, Linux $XDG_DATA_HOME/squawk/models
 pub fn log_path() -> PathBuf;
 
 // settings.rs  (data_dir()/settings.json, every field optional; on Linux data_dir()/config.json,
@@ -85,14 +85,14 @@ pub struct Settings {
 impl Settings { pub fn path() -> PathBuf; pub fn load() -> Self; pub fn save(&self) -> anyhow::Result<()>; }
 
 // bench.rs
-pub const CASES: [(TargetContext, &str); 5];   // MurmurKit's benchCases, for `murmur bench`
+pub const CASES: [(TargetContext, &str); 5];   // for `squawkctl bench`
 ```
 
-## murmur-stt
+## squawk-stt
 
 ```rust
 pub const DEFAULT_MODEL: &str = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8";
-pub fn default_model_dir() -> PathBuf;                 // murmur_core::paths::models_dir()/DEFAULT_MODEL
+pub fn default_model_dir() -> PathBuf;                 // squawk_core::paths::models_dir()/DEFAULT_MODEL
 pub fn model_present(dir: &Path) -> bool;
 pub fn download_model(dir: &Path, progress: impl FnMut(u64, Option<u64>)) -> anyhow::Result<()>;
 pub fn default_threads() -> usize;                     // min(cores, 8): faster than 4 on big chips, flat after 8
@@ -103,7 +103,7 @@ impl Transcriber {
 }
 ```
 
-## murmur-audio
+## squawk-audio
 
 ```rust
 pub fn input_devices() -> Vec<String>;                // names, for the Microphone menu
@@ -121,7 +121,7 @@ pub fn play_wav(wav: Vec<u8>, volume: f32);           // fire and forget
 pub fn load_wav(path: &Path) -> anyhow::Result<Vec<f32>>;  // any WAV → 16 kHz mono
 ```
 
-## murmur-platform (one module per OS behind cfg; same API everywhere)
+## squawk-platform (one module per OS behind cfg; same API everywhere)
 
 ```rust
 pub enum HotkeyEvent { Pressed, Released, Cancelled }
@@ -129,25 +129,25 @@ pub struct HotkeyMonitor;
 impl HotkeyMonitor {
     /// Starts listening on its own thread. Pressed fires after the key has been held 200 ms
     /// (a quick tap is left to the OS); Cancelled when another key is typed while held.
-    pub fn start(key: murmur_core::Hotkey, on_event: impl Fn(HotkeyEvent) + Send + 'static) -> anyhow::Result<Self>;
-    pub fn set_key(&self, key: murmur_core::Hotkey);
+    pub fn start(key: squawk_core::Hotkey, on_event: impl Fn(HotkeyEvent) + Send + 'static) -> anyhow::Result<Self>;
+    pub fn set_key(&self, key: squawk_core::Hotkey);
 }
 pub fn frontmost_app() -> Option<String>;       // macOS bundle ID, Windows exe name, Linux window class
-pub fn target_context() -> murmur_core::TargetContext;  // frontmost_app() mapped with the right from_*
+pub fn target_context() -> squawk_core::TargetContext;  // frontmost_app() mapped with the right from_*
 pub enum PasteOutcome { Pasted, CopiedOnly }
 pub fn paste(text: &str) -> anyhow::Result<PasteOutcome>;  // clipboard + paste keystroke; text stays on clipboard
 pub fn has_input_permission(prompt: bool) -> bool;          // macOS Accessibility; true elsewhere
 pub fn notify(message: &str);
 ```
 
-## murmur-control (Unix only; the Linux daemon's control socket)
+## squawk-control (Unix only; the Linux daemon's control socket)
 
-Hyprland key bindings run `murmur start` / `murmur stop`, which send one command and print the
+Hyprland key bindings run `squawkctl start` / `squawkctl stop`, which send one command and print the
 reply; the Omarchy plugin (`linux/omarchy-plugin`) sends `watch` and stays connected for events.
 Plain text, one line each way. The plugin parses it, so the wire format doesn't change.
 
 ```rust
-pub fn socket_path() -> PathBuf;   // $XDG_RUNTIME_DIR/murmur/murmur.sock, else /tmp/murmur-<uid>/murmur/murmur.sock
+pub fn socket_path() -> PathBuf;   // $XDG_RUNTIME_DIR/squawk/squawk.sock, else /tmp/squawk-<uid>/squawk/squawk.sock
                                    // (the same path the plugin computes)
 pub enum Command { Start, Stop, Toggle, Cancel, Status, Recent, Reload }   // "start", …; ALL, as_str(), parse(), Display
 // The daemon's replies (free text, for people): start → "recording" | "already recording" |
@@ -177,7 +177,7 @@ impl Server {
     /// "unknown command: <line>" without reaching it.
     pub fn start(path: &Path, handler: impl FnMut(Command) -> String + Send + 'static) -> anyhow::Result<Self>;
     /// From any thread; never blocks. Drops watchers that are gone or not reading. Returns how
-    /// many got it (0 → nobody saw a notice, so fall back to murmur_platform::notify).
+    /// many got it (0 → nobody saw a notice, so fall back to squawk_platform::notify).
     /// The latest Queue and State are sent to each new watcher first.
     pub fn broadcast(&self, event: &Event) -> usize;
     pub fn watcher_count(&self) -> usize;
@@ -185,7 +185,7 @@ impl Server {
 }
 ```
 
-## murmur-engine (the dictation loop every front end shares)
+## squawk-engine (the dictation loop every front end shares)
 
 Recording, the queue and its worker, model loading, the warm-ups and notices. Owned by one
 thread, which makes every call; its own threads report through `on_event`, which must return
@@ -197,7 +197,7 @@ pub const SOUND_VOLUME: f32;        // 0.6, the start/stop sounds (and the menu'
 
 pub struct Options {                // where the speech model comes from; Default = the Mac's
     pub model_dir: Option<PathBuf>, // never downloaded into
-    pub threads: Option<usize>,     // None → murmur_stt::default_threads()
+    pub threads: Option<usize>,     // None → squawk_stt::default_threads()
 }
 pub enum ModelState { Loading(String), Ready, Failed(String) }   // Loading carries progress text
 pub enum Event {
@@ -234,14 +234,14 @@ impl Engine {
 pub fn default_model_dir(options: &Options) -> PathBuf;
 /// Blocking: download if need be (default folder only), load, warm up.
 pub fn load_model(options: &Options, progress: impl FnMut(String)) -> anyhow::Result<Transcriber>;
-pub fn prepare_local_model(model: String);   // own thread; failure → murmur_platform::notify
+pub fn prepare_local_model(model: String);   // own thread; failure → squawk_platform::notify
 pub fn load_dictionary() -> Dictionary;      // re-read per dictation; unreadable → empty
 pub struct MissingApiKey;                    // std Error
 pub fn cleaner(mode: CleanupMode, ollama_model: &str, vocabulary: Vec<String>)
     -> Result<Option<Box<dyn TextCleaner>>, MissingApiKey>;   // None = cleanup off
 ```
 
-## murmur (the binary)
+## squawk (the binary)
 
 `main` picks the front end by OS; both use only the APIs above.
 
@@ -256,7 +256,7 @@ pub fn cleaner(mode: CleanupMode, ollama_model: &str, vocabulary: Vec<String>)
   a notice nobody watched goes to `notify()`. `config.json`'s `model` and `threads` become
   `Options`.
 
-## murmur-eval (a binary, on every OS)
+## squawk-eval (a binary, on every OS)
 
 Uses only the APIs above: `load_model` with `Options` for each model folder it compares,
 `Transcriber::transcribe`, `Recorder` and `load_wav` for clips, `load_dictionary`, and

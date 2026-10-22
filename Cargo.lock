@@ -1813,129 +1813,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "murmur"
-version = "0.1.0"
-dependencies = [
- "ab_glyph",
- "anyhow",
- "arboard",
- "libc",
- "log",
- "murmur-audio",
- "murmur-control",
- "murmur-core",
- "murmur-engine",
- "murmur-platform",
- "murmur-stt",
- "objc2",
- "objc2-app-kit",
- "objc2-av-foundation",
- "objc2-core-foundation",
- "objc2-core-graphics",
- "objc2-foundation",
- "objc2-quartz-core",
- "objc2-service-management",
- "serde",
- "serde_json",
- "simplelog",
- "tao",
- "tray-icon",
- "wry",
-]
-
-[[package]]
-name = "murmur-audio"
-version = "0.1.0"
-dependencies = [
- "alsa",
- "anyhow",
- "cpal",
- "hound",
- "log",
- "murmur-core",
- "rubato",
-]
-
-[[package]]
-name = "murmur-control"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "libc",
- "log",
-]
-
-[[package]]
-name = "murmur-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "dirs 6.0.0",
- "fancy-regex",
- "keyring",
- "log",
- "regex",
- "serde",
- "serde_json",
- "ureq 3.5.0",
-]
-
-[[package]]
-name = "murmur-engine"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "log",
- "murmur-audio",
- "murmur-core",
- "murmur-platform",
- "murmur-stt",
-]
-
-[[package]]
-name = "murmur-eval"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "hound",
- "murmur-audio",
- "murmur-core",
- "murmur-engine",
- "murmur-stt",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "murmur-platform"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "log",
- "murmur-core",
- "objc2",
- "objc2-app-kit",
- "objc2-application-services",
- "objc2-core-foundation",
- "objc2-core-graphics",
- "objc2-foundation",
- "serde_json",
-]
-
-[[package]]
-name = "murmur-stt"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bzip2 0.6.1",
- "hound",
- "murmur-core",
- "sherpa-onnx",
- "tar",
- "ureq 3.5.0",
-]
-
-[[package]]
 name = "ndk"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3029,6 +2906,129 @@ dependencies = [
  "gobject-sys",
  "libc",
  "system-deps",
+]
+
+[[package]]
+name = "squawk"
+version = "0.1.0"
+dependencies = [
+ "ab_glyph",
+ "anyhow",
+ "arboard",
+ "libc",
+ "log",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-av-foundation",
+ "objc2-core-foundation",
+ "objc2-core-graphics",
+ "objc2-foundation",
+ "objc2-quartz-core",
+ "objc2-service-management",
+ "serde",
+ "serde_json",
+ "simplelog",
+ "squawk-audio",
+ "squawk-control",
+ "squawk-core",
+ "squawk-engine",
+ "squawk-platform",
+ "squawk-stt",
+ "tao",
+ "tray-icon",
+ "wry",
+]
+
+[[package]]
+name = "squawk-audio"
+version = "0.1.0"
+dependencies = [
+ "alsa",
+ "anyhow",
+ "cpal",
+ "hound",
+ "log",
+ "rubato",
+ "squawk-core",
+]
+
+[[package]]
+name = "squawk-control"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "libc",
+ "log",
+]
+
+[[package]]
+name = "squawk-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dirs 6.0.0",
+ "fancy-regex",
+ "keyring",
+ "log",
+ "regex",
+ "serde",
+ "serde_json",
+ "ureq 3.5.0",
+]
+
+[[package]]
+name = "squawk-engine"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "log",
+ "squawk-audio",
+ "squawk-core",
+ "squawk-platform",
+ "squawk-stt",
+]
+
+[[package]]
+name = "squawk-eval"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "hound",
+ "serde",
+ "serde_json",
+ "squawk-audio",
+ "squawk-core",
+ "squawk-engine",
+ "squawk-stt",
+]
+
+[[package]]
+name = "squawk-platform"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "log",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-application-services",
+ "objc2-core-foundation",
+ "objc2-core-graphics",
+ "objc2-foundation",
+ "serde_json",
+ "squawk-core",
+]
+
+[[package]]
+name = "squawk-stt"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bzip2 0.6.1",
+ "hound",
+ "sherpa-onnx",
+ "squawk-core",
+ "tar",
+ "ureq 3.5.0",
 ]
 
 [[package]]

@@ -1,4 +1,4 @@
-# Murmur
+# Squawk
 
 Push-to-talk dictation for macOS and Linux (Hyprland). Hold a key, speak, and polished text appears wherever your cursor is.
 
@@ -24,21 +24,19 @@ Most of the quality comes from the cleanup pass. It fixes misheard words, drops 
 | [`scripts/`](scripts) | Building the macOS app bundle, and checking the Linux build from a Mac. |
 | [`eval/`](eval) | Recordings of your voice for the [eval](#eval-harness), and its reports. Both stay local. |
 
-Murmur is open source and isn't distributed as a prebuilt app: you build it on the machine that runs it.
+Squawk is open source and isn't distributed as a prebuilt app: you build it on the machine that runs it.
 
 ## macOS
 
 You need [Rust](https://rustup.rs) (`rustup default stable`), the Xcode Command Line Tools (`xcode-select --install`), and a self-signed code-signing certificate, which takes a minute to make and needs no Apple account (see [Signing](#signing)).
 
 ```bash
-scripts/bundle-macos.sh   # release build, signed target/Murmur.app
-open target/Murmur.app
-tail -f ~/Library/Logs/Murmur/murmur.log
+scripts/bundle-macos.sh   # release build, signed target/Squawk.app
+open target/Squawk.app
+tail -f ~/Library/Logs/Squawk/squawk.log
 ```
 
-The first launch downloads the Parakeet model (~480 MB). Allow **Microphone** and turn on Murmur under **System Settings › Privacy & Security › Accessibility**. Accessibility lets Murmur see the push-to-talk key and paste at your cursor. Both permissions persist across rebuilds as long as you sign with the same certificate. Store your [API key](#api-key) for Claude cleanup. The menu's **Launch at Login** starts it with your Mac.
-
-If you still have the earlier Swift version of Murmur installed, quit it first: both listen for fn. They have different bundle IDs, so each has its own permission grants; the Dictionary and API key are shared.
+The first launch downloads the Parakeet model (~480 MB). Allow **Microphone** and turn on Squawk under **System Settings › Privacy & Security › Accessibility**. Accessibility lets Squawk see the push-to-talk key and paste at your cursor. Both permissions persist across rebuilds as long as you sign with the same certificate. Store your [API key](#api-key) for Claude cleanup. The menu's **Launch at Login** starts it with your Mac.
 
 Hold **fn** (changeable in the menu), speak, and release. The text is pasted wherever your cursor is.
 
@@ -52,31 +50,31 @@ Hold **fn** (changeable in the menu), speak, and release. The text is pasted whe
 - **Chords are ignored:** typing another key while holding the hotkey (e.g. ⌥← to jump words) cancels the recording.
 - **Context:** the frontmost app sets the cleanup style. Slack and Messages get chat style, Mail gets email, Notes and Obsidian get markdown notes, editors and terminals get code.
 - **Cleanup** (menu): **Claude Haiku** (cloud, most reliable, ~1.3 s), **Local Model** via Ollama (default `qwen3.5:9b`, ~250 ms, occasional slips such as an invented heading or a dropped "yeah"; `ollama pull qwen3.5:9b` first), or **Off** (paste Parakeet's transcript as-is). The menu shows how long the last dictation's speech and cleanup steps took.
-- **Fallbacks:** if cleanup fails (no API key, Ollama not running), Murmur pastes the raw transcript and says so. Without Accessibility, it copies the text so you can ⌘V.
-- **Dictionary** (menu › Dictionary…): **Words** are spellings to prefer (names, jargon), used by the cleanup step to fix near-misses. **Replacements** are exact "when I say X, write Y" fixes, applied to every dictation even with cleanup off; they ignore case and match whole words only. Both live in `~/Library/Application Support/Murmur/dictionary.json`, which you can also edit by hand; changes apply on the next dictation.
-- **Microphone** (menu): System Default or any connected mic. Murmur remembers your choice without changing the system-wide default, and uses the default while that mic is unplugged.
+- **Fallbacks:** if cleanup fails (no API key, Ollama not running), Squawk pastes the raw transcript and says so. Without Accessibility, it copies the text so you can ⌘V.
+- **Dictionary** (menu › Dictionary…): **Words** are spellings to prefer (names, jargon), used by the cleanup step to fix near-misses. **Replacements** are exact "when I say X, write Y" fixes, applied to every dictation even with cleanup off; they ignore case and match whole words only. Both live in `~/Library/Application Support/Squawk/dictionary.json`, which you can also edit by hand; changes apply on the next dictation.
+- **Microphone** (menu): System Default or any connected mic. Squawk remembers your choice without changing the system-wide default, and uses the default while that mic is unplugged.
 - **Sound Effects** (menu): a start and stop sound in one of four styles, all synthesized in code: **Wood** (low, woody; default), **Soft** (pure round tones with a faint grace note), **Chime** (bright, bell-like) or **Bubble** (a single note that swoops up or down). Picking one plays a preview.
 - **Clipboard:** the dictated text stays on the clipboard after pasting, so you can paste it again (or yourself, if no text field had focus).
-- **Settings** live in `~/Library/Application Support/Murmur/settings.json`.
+- **Settings** live in `~/Library/Application Support/Squawk/settings.json`.
 
 ### Signing
 
-macOS ties the Microphone and Accessibility permissions to the certificate an app is signed with, so Murmur has to be signed, and with the same certificate every time, or macOS asks again after each rebuild. A self-signed certificate does that: it's only trusted on the Mac that made it, which is all a build you run yourself needs.
+macOS ties the Microphone and Accessibility permissions to the certificate an app is signed with, so Squawk has to be signed, and with the same certificate every time, or macOS asks again after each rebuild. A self-signed certificate does that: it's only trusted on the Mac that made it, which is all a build you run yourself needs.
 
-1. In **Keychain Access**, choose **Keychain Access › Certificate Assistant › Create a Certificate…**. Name it `Murmur Self-Signed`, set **Identity Type** to **Self-Signed Root** and **Certificate Type** to **Code Signing**, and click **Create**.
-2. Run `scripts/bundle-macos.sh`, which signs with `Murmur Self-Signed` by default. The first signing may ask to use the certificate's key; choose **Always Allow**.
+1. In **Keychain Access**, choose **Keychain Access › Certificate Assistant › Create a Certificate…**. Name it `Squawk Self-Signed`, set **Identity Type** to **Self-Signed Root** and **Certificate Type** to **Code Signing**, and click **Create**.
+2. Run `scripts/bundle-macos.sh`, which signs with `Squawk Self-Signed` by default. The first signing may ask to use the certificate's key; choose **Always Allow**.
 
-Keep the certificate: a new one, even with the same name, makes macOS ask for the permissions again. To sign with a different certificate you already have, such as an Apple Development one, set `MURMUR_SIGN_IDENTITY` to its name; the script lists the ones in your Keychain if it can't find it.
+Keep the certificate: a new one, even with the same name, makes macOS ask for the permissions again. To sign with a different certificate you already have, such as an Apple Development one, set `SQUAWK_SIGN_IDENTITY` to its name; the script lists the ones in your Keychain if it can't find it.
 
 Linux needs no signing.
 
 ## Linux
 
-The same `murmur` binary is a daemon and command-line tool for Hyprland, driven by key bindings, with an Omarchy pill and bar menu. Setup, bindings and troubleshooting are in [`linux/README.md`](linux/README.md):
+The same binary, installed as `squawkctl`, is a daemon and command-line tool for Hyprland, driven by key bindings, with an Omarchy pill and bar menu. Setup, bindings and troubleshooting are in [`linux/README.md`](linux/README.md):
 
 ```bash
-linux/install.sh   # release build to ~/.local/bin/murmur, plus the Omarchy plugin
-murmur doctor
+linux/install.sh   # release build to ~/.local/bin/squawkctl, plus the Omarchy plugin
+squawkctl doctor
 ```
 
 ## API key
@@ -86,18 +84,45 @@ Create a key at [platform.claude.com](https://platform.claude.com/settings/keys)
 On macOS, store it in your login Keychain. The command prompts for the key, so it never lands in shell history; add `-U` to replace a stored key:
 
 ```bash
-security add-generic-password -s com.plyhdrn.murmur -a anthropic-api-key -w
+security add-generic-password -s com.plyhdrn.squawk -a anthropic-api-key -w
 ```
 
 On Linux, it's read from the Secret Service keyring; [`linux/README.md`](linux/README.md) has the command.
 
-## Eval harness
+## Coming from Murmur
 
-`murmur-eval` scores speech-to-text and the cleanup prompt against recordings of your voice, with the same speech model, prompt and Dictionary as the app. It runs on macOS and Linux, and uses the same [API key](#api-key). The first run downloads the speech model if the app hasn't already.
+Squawk used to be called Murmur, and it doesn't look for anything under the old name. To keep your settings, Dictionary and downloaded model, move them across before the first launch.
+
+On macOS, quit Murmur and delete `Murmur.app`, then:
 
 ```bash
-cargo build --release -p murmur-eval
-E=target/release/murmur-eval
+mv ~/Library/Application\ Support/Murmur ~/Library/Application\ Support/Squawk
+```
+
+Store the [API key](#api-key) again under `com.plyhdrn.squawk`. The new bundle ID means granting Microphone and Accessibility once more. To keep signing with your old certificate, set `SQUAWK_SIGN_IDENTITY="Murmur Self-Signed"`.
+
+On Linux:
+
+```bash
+pkill -x murmur
+omarchy plugin disable plyhdrn.murmur
+rm -rf ~/.config/omarchy/plugins/plyhdrn.murmur ~/.local/bin/murmur
+mv ~/.config/murmur ~/.config/squawk
+mv ~/.local/share/murmur ~/.local/share/squawk
+secret-tool lookup service com.plyhdrn.murmur account anthropic-api-key \
+  | secret-tool store --label='Squawk' service com.plyhdrn.squawk account anthropic-api-key
+linux/install.sh
+```
+
+Then change `murmur` to `squawkctl` in your Hyprland autostart and key bindings.
+
+## Eval harness
+
+`squawk-eval` scores speech-to-text and the cleanup prompt against recordings of your voice, with the same speech model, prompt and Dictionary as the app. It runs on macOS and Linux, and uses the same [API key](#api-key). The first run downloads the speech model if the app hasn't already.
+
+```bash
+cargo build --release -p squawk-eval
+E=target/release/squawk-eval
 
 # Record clips. After each one, type what you said verbatim (for WER) and what you'd want typed.
 $E record standup --context chat
@@ -119,5 +144,5 @@ $E clean "um so first update the readme second tag the release" --context notes
 - **Clips** live in `eval/clips/` as `<name>.wav` plus a `<name>.json` sidecar (`reference`, `intended`, `context`). Any WAV file you drop in works too. Audio and reports are gitignored.
 - **Contexts**: `plain`, `chat`, `email`, `notes`, `code`. They set how the cleanup pass formats output.
 - **Dictionary**: every command uses the app's dictionary (`dictionary.json`) so results match real use. Pass `--dictionary <file>` to try another, or `--dictionary none` for none.
-- **Cleanup prompt**: `crates/murmur-core/src/prompt.rs`. Try a draft first with `--prompt draft.md`.
+- **Cleanup prompt**: `crates/squawk-core/src/prompt.rs`. Try a draft first with `--prompt draft.md`.
 

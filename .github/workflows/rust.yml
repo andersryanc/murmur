@@ -1,4 +1,4 @@
-# Formatting, lints and tests for the Rust workspace, on the two platforms Murmur ships
+# Formatting, lints and tests for the Rust workspace, on the two platforms Squawk ships
 # for: macOS (Apple Silicon) and Linux (x86_64, like the Omarchy machine). Clippy runs on both
 # because each OS compiles its own platform code. No releases are built here.
 name: Rust

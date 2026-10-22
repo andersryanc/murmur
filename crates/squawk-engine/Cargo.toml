@@ -1,0 +1,13 @@
+[package]
+name = "squawk-engine"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+log.workspace = true
+squawk-core.workspace = true
+squawk-stt.workspace = true
+squawk-audio.workspace = true
+squawk-platform.workspace = true
