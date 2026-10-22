@@ -6,7 +6,7 @@ Ideas for what's next, roughly in priority order. Nothing here is committed to; 
 
 - [ ] **"Fix…" on recent dictations.** From the menu's recent dictations, correct a word and save it straight to the Dictionary as a replacement. The closest thing to learning from your edits.
 - [ ] **Hear your Words right the first time.** Bias Parakeet toward the Dictionary's Words with FluidAudio's vocabulary boosting (`configureVocabularyBoosting`), so the speech recognizer itself gets names right instead of the cleanup step fixing them afterwards. Likely needs an extra model download; measure with the eval before and after.
-- [ ] **Try other local cleanup models.** `qwen3.5:9b` sometimes drops "yeah" in "yeah, okay" and invents headings in notes. Compare newer small models with `MurmurEval bench --cleaner ollama:<model>`.
+- [ ] **Try other local cleanup models.** `qwen3.5:9b` sometimes drops "yeah" in "yeah, okay" and invents headings in notes. Compare newer small models with `murmur-eval bench --cleaner ollama:<model>`.
 
 ## Speed
 
@@ -23,7 +23,6 @@ Murmur is build-it-yourself: no prebuilt releases, Developer ID or notarization.
 
 ## Retire the Swift app
 
-- [ ] **Port the eval to Rust.** `murmur eval record/run/bench/clean` against the sherpa-onnx Parakeet the app actually runs, then delete `Eval/`.
 - [ ] **Make `prompt.rs` the only copy of the cleanup prompt.** Drop the test that compares it with `CleanupPrompt.swift`.
 - [ ] **Install the Rust app on macOS.** A script that runs `rust/scripts/bundle-macos.sh` and copies the app to `~/Applications`, like `scripts/install.sh` does for the Swift app, so it runs from a stable path rather than `rust/target/`.
 - [ ] **Take over the bundle ID.** Once the Swift app is gone, move from `com.plyhdrn.murmur-rs` to `com.plyhdrn.murmur`.

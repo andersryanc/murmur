@@ -3,11 +3,6 @@
 .swiftpm/
 xcuserdata/
 DerivedData/
-# Your voice recordings and run output stay local.
-Eval/clips/*.wav
-Eval/clips/*.m4a
-Eval/results/
-
 # Personal signing settings (Team ID)
 App/Signing.local.xcconfig
 
