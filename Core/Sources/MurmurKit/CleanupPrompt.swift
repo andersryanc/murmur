@@ -1,7 +1,7 @@
 import Foundation
 
 /// System prompt for the cleanup pass. Murmur's quality lives here, so treat edits like code changes and
-/// check them against the eval (`MurmurEval run`). `MurmurEval --prompt <file>` tries a draft without a rebuild.
+/// check them against the eval (`murmur-eval run`, in rust/). `murmur-eval --prompt <file>` tries a draft without a rebuild.
 public enum CleanupPrompt {
     /// What the model returns when there's nothing to type (see the Output section below).
     public static let emptyMarker = "<empty/>"

@@ -21,8 +21,8 @@ Most of the quality comes from the cleanup pass. It fixes misheard words, drops 
 |---|---|
 | [`rust/`](rust) | **Murmur.** One Rust workspace for both platforms: the macOS menu-bar app and the Linux daemon share the dictation engine, cleanup prompt, Dictionary and speech model. Crates are described in [`rust/README.md`](rust/README.md) and [`rust/CONTRACTS.md`](rust/CONTRACTS.md). |
 | [`rust/linux/`](rust/linux) | Linux setup: the install script, Hyprland bindings and the Omarchy pill and bar menu. Start with [`rust/linux/README.md`](rust/linux/README.md). |
-| [`App/`](App), [`Core/`](Core) | The original Swift macOS app and its `MurmurKit`/`MurmurCore` packages. Kept until the eval and the release scripts move to Rust; `Core/Sources/MurmurKit/CleanupPrompt.swift` is still the prompt's reference copy (see [The Swift app](#the-swift-app)). |
-| [`Eval/`](Eval) | Swift CLI harness that scores speech engines and the cleanup prompt against recordings of your voice. macOS only. |
+| [`rust/eval/`](rust/eval) | Recordings of your voice for the [eval](#eval-harness), and its reports. Both stay local. |
+| [`App/`](App), [`Core/`](Core) | The original Swift macOS app and its `MurmurKit`/`MurmurCore` packages, being retired. `Core/Sources/MurmurKit/CleanupPrompt.swift` is a copy of the cleanup prompt that a Rust test keeps in step (see [The Swift app](#the-swift-app)). |
 
 Murmur is open source and isn't distributed as a prebuilt app: you build it on the machine that runs it.
 
@@ -93,37 +93,38 @@ On Linux, it's read from the Secret Service keyring; [`rust/linux/README.md`](ru
 
 ## Eval harness
 
-Still Swift, so it runs the Swift engines (Parakeet on the Neural Engine through FluidAudio, and Apple's speech) rather than the Rust app's sherpa-onnx build; the cleanup prompt is byte-for-byte the same, so prompt results carry over. Requires macOS 26 and Xcode 26. The first run downloads the Parakeet models (~500 MB) and Apple's speech assets. It uses the same [API key](#api-key).
+`murmur-eval` scores speech-to-text and the cleanup prompt against recordings of your voice, with the same speech model, prompt and Dictionary as the app. It runs on macOS and Linux, and uses the same [API key](#api-key). The first run downloads the speech model if the app hasn't already.
 
 ```bash
-cd Eval
-swift build
+cd rust
+cargo build --release -p murmur-eval
+E=target/release/murmur-eval
 
 # Record clips. After each one, type what you said verbatim (for WER) and what you'd want typed.
-.build/debug/MurmurEval record standup --context chat
-.build/debug/MurmurEval record todo-list --context notes
+$E record standup --context chat
+$E record todo-list --context notes
 
-# Transcribe every clip with each engine, clean each transcript, and write a report to results/.
-.build/debug/MurmurEval run
-.build/debug/MurmurEval run --engines parakeet,parakeet-ultra,apple
+# Transcribe every clip, clean each transcript, and write a report to eval/results/.
+$E run
+$E run --models ~/models/parakeet-a,~/models/parakeet-b   # compare sherpa-onnx model folders
 
 # Time a cleaner on built-in test dictations: claude (default) or ollama:<model>.
-.build/debug/MurmurEval bench --cleaner ollama:qwen3.5:9b
+$E bench --cleaner ollama:qwen3.5:9b
 
 # Try the cleanup pass without audio. Add --prompt draft.md to test a prompt edit.
-.build/debug/MurmurEval clean "um so first update the readme second tag the release" --context notes
+$E clean "um so first update the readme second tag the release" --context notes
 ```
 
-Run the binary directly rather than `swift run`, so macOS attributes the mic prompt to your terminal.
+`$E help` lists every command and option. On macOS the microphone prompt is for your terminal app, which records on its behalf.
 
-- **Clips** live in `Eval/clips/` as `<name>.wav` plus a `<name>.json` sidecar (`reference`, `intended`, `context`). Any `.wav`/`.m4a` you drop in works too. Audio is gitignored.
+- **Clips** live in `rust/eval/clips/` as `<name>.wav` plus a `<name>.json` sidecar (`reference`, `intended`, `context`). Any WAV file you drop in works too. Audio and reports are gitignored.
 - **Contexts**: `plain`, `chat`, `email`, `notes`, `code`. They set how the cleanup pass formats output.
 - **Dictionary**: every command uses the app's dictionary (`dictionary.json`) so results match real use. Pass `--dictionary <file>` to try another, or `--dictionary none` for none.
-- **Cleanup prompt**: edit `Core/Sources/MurmurKit/CleanupPrompt.swift` and `rust/crates/murmur-core/src/prompt.rs` together; a Rust test fails if they differ. Try a draft first with `--prompt draft.md`.
+- **Cleanup prompt**: `rust/crates/murmur-core/src/prompt.rs`. Try a draft first with `--prompt draft.md`. Until the Swift app is deleted, a test keeps `Core/Sources/MurmurKit/CleanupPrompt.swift` byte-for-byte the same, so edit both.
 
 ## The Swift app
 
-The original macOS app, in `App/` and `Core/`, kept until the eval is ported. It needs Xcode 26 and XcodeGen, and signs with the same [self-signed certificate](#signing):
+The original macOS app, in `App/` and `Core/`, being retired. It needs Xcode 26 and XcodeGen, and signs with the same [self-signed certificate](#signing):
 
 ```bash
 brew install xcodegen   # once

@@ -1893,6 +1893,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "murmur-eval"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "hound",
+ "murmur-audio",
+ "murmur-core",
+ "murmur-engine",
+ "murmur-stt",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "murmur-platform"
 version = "0.1.0"
 dependencies = [

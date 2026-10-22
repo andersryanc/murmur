@@ -255,3 +255,10 @@ pub fn cleaner(mode: CleanupMode, ollama_model: &str, vocabulary: Vec<String>)
   the main thread, which broadcasts `queue`, `state`, `level` and `notice` lines to watchers;
   a notice nobody watched goes to `notify()`. `config.json`'s `model` and `threads` become
   `Options`.
+
+## murmur-eval (a binary, on every OS)
+
+Uses only the APIs above: `load_model` with `Options` for each model folder it compares,
+`Transcriber::transcribe`, `Recorder` and `load_wav` for clips, `load_dictionary`, and
+`ClaudeCleaner`/`OllamaCleaner` with their public `system_prompt` and `options` set from its
+flags (`--prompt`, `--thinking`, `--effort`, `--plain-reply`). Nothing depends on it.
