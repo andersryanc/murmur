@@ -302,7 +302,10 @@ Panel {
             title: "CLEANUP"
 
             ChoiceRow {
-              choices: root.cleanupModes
+              // Claude only once there's an API key (or while it's the current choice).
+              choices: root.cleanupModes.filter(function(mode) {
+                return mode.value !== "claude" || (root.info !== null && root.info.offerClaude === true)
+              })
               current: root.info ? root.info.cleanup : ""
               onPicked: function(value) { root.set("cleanup", value) }
             }

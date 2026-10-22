@@ -78,15 +78,21 @@ This builds a release binary and installs `~/.local/bin/squawkctl`. On Omarchy i
 
 The speech model (~480 MB) is downloaded into `~/.local/share/squawk/models/` the first time the daemon starts; `squawkctl status` says `loading` until it's ready.
 
-### 4. API key
+### 4. Cleanup
 
-For Claude cleanup, store your Anthropic API key in the keyring (it prompts for the key, so it doesn't land in shell history):
+Cleanup runs on a local model through [Ollama](https://ollama.com) by default. Install it (`sudo pacman -S ollama`, then `sudo systemctl enable --now ollama`) and pull the model:
+
+```bash
+ollama pull qwen3.5:9b
+```
+
+For Claude Haiku instead, store your Anthropic API key in the keyring (it prompts for the key, so it doesn't land in shell history). The bar menu lists Claude once a key is stored:
 
 ```bash
 secret-tool store --label='Squawk' service com.plyhdrn.squawk account anthropic-api-key
 ```
 
-This needs a Secret Service provider such as gnome-keyring, which Omarchy uses. Without one, set `ANTHROPIC_API_KEY` for the daemon instead, e.g. `env = ANTHROPIC_API_KEY,…` in Hyprland's config. To use a local model or no cleanup, see [Settings](#settings).
+This needs a Secret Service provider such as gnome-keyring, which Omarchy uses. Without one, set `ANTHROPIC_API_KEY` for the daemon instead, e.g. `env = ANTHROPIC_API_KEY,…` in Hyprland's config. To switch cleanup without the bar menu, see [Settings](#settings).
 
 ### 5. Hyprland
 
@@ -148,8 +154,8 @@ It checks each tool, pipewire-alsa, the model, the API key (or the Ollama model)
 }
 ```
 
-- **cleanup**: `claude` (default), `ollama` (runs `ollamaModel`; `ollama pull` it first) or `off` (paste Parakeet's transcript as-is).
-- **sounds**: `wood` (default), `soft`, `chime`, `bubble` or `off`.
+- **cleanup**: `ollama` (default; runs `ollamaModel`, so `ollama pull` it first), `claude` (needs the [API key](#4-cleanup)) or `off` (paste Parakeet's transcript as-is).
+- **sounds**: `wood`, `soft` (default), `chime`, `bubble` or `off`.
 - **microphone**: a PipeWire node name from `pw-record --list-targets` (or `wpctl status`); leave it out to use the default input. It's opened through pipewire-alsa as the ALSA device `pipewire:NODE=<name>`. If that can't be opened (no pipewire-alsa, PipeWire not running), Squawk logs it and records from the default input instead.
 - **threads**: CPU threads for speech-to-text (default: the number of cores, up to 8).
 - **model**: a different sherpa-onnx Parakeet folder (default `~/.local/share/squawk/models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8`). A folder set here is never downloaded into.
@@ -164,13 +170,13 @@ Work through these on the Linux machine, roughly in order. Each one isolates one
 
 1. `squawkctl doctor` reports nothing missing (the model may still be missing before the first daemon start).
 2. **Speech model:** `squawkctl transcribe ~/.local/share/squawk/models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/test_wavs/en.wav --no-cleanup` prints a sensible sentence. Note the load and speech times. (If the model isn't there yet, this downloads it.)
-3. **Cleanup and API key:** the same without `--no-cleanup` prints a `Cleanup [claude-… plain]` line rather than "Cleanup failed".
+3. **Cleanup:** the same without `--no-cleanup` prints a `Cleanup [… plain]` line naming the Ollama model rather than "Cleanup failed". With an API key stored and `cleanup` set to `claude`, it names `claude-…` instead.
 4. **Daemon by hand:** `squawkctl daemon` in one terminal (it logs `Ready` once the model has loaded); in another, run `squawkctl start`, speak, then `squawkctl stop`. The text should paste into that second terminal (with Ctrl+Shift+V). The daemon's terminal shows the timing and `Dictated:` lines.
 5. **Microphone:** with no `microphone` setting, step 4 records from the default input. Then set `microphone` to a node name from `pw-record --list-targets` and repeat: the daemon log should not say "unavailable … using the default". Check the pill's level meter moves while you speak.
 6. **Sounds:** start and stop each play a short tone, and they don't go to the microphone node.
 7. **Key binding:** hold the key, speak, release. Check that it pastes into a browser text field (Ctrl+V), a terminal (Ctrl+Shift+V), and a chat app (chat style).
 8. **Pill:** while recording the pill shows the level, then "Squawking…", and two quick dictations show two cards. Stop the daemon (`pkill -x squawkctl`) and start it again: the pill reconnects.
-9. **Bar menu:** the mic icon turns red while recording. In its menu, pick another sound (it plays as a preview), switch cleanup to Local and back, pick a microphone, and copy a recent dictation; `config.json` keeps any `model` or `threads` you set. Quit dims the icon; Start brings the daemon back.
+9. **Bar menu:** the mic icon turns red while recording. In its menu, pick another sound (it plays as a preview), switch cleanup to Off and back to Local (Claude is listed only with an API key stored), pick a microphone, and copy a recent dictation; `config.json` keeps any `model` or `threads` you set. Quit dims the icon; Start brings the daemon back.
 10. **First word:** say a short sentence right as you press the key. If the first word is often missing, the microphone is starting too slowly (see Ideas).
 11. **Taps:** tap the key without speaking. Nothing should paste (`squawkctl stop` replies `no speech`).
 12. **Notices without the pill:** `omarchy plugin disable plyhdrn.squawk`, then dictate with cleanup set to `ollama` and Ollama stopped: a `notify-send` notification says "Cleanup failed, pasted raw text". Re-enable it with `omarchy plugin enable plyhdrn.squawk --section right`.

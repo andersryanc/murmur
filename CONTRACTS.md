@@ -77,10 +77,10 @@ pub enum Hotkey { Fn, RightOption, RightCommand, RightAlt, RightCtrl }  // serde
 pub enum CleanupMode { Claude, Ollama, Off }
 pub struct Settings {
     pub hotkey: Hotkey,                  // Fn on macOS, RightAlt elsewhere
-    pub cleanup: CleanupMode,            // Claude
+    pub cleanup: CleanupMode,            // Ollama
     pub ollama_model: String,            // "qwen3.5:9b"
     pub microphone: Option<String>,      // device name; None = system default
-    pub sounds: Option<SoundTheme>,      // Some(Wood); None = off
+    pub sounds: Option<SoundTheme>,      // Some(Soft); None = off
 }
 impl Settings { pub fn path() -> PathBuf; pub fn load() -> Self; pub fn save(&self) -> anyhow::Result<()>; }
 

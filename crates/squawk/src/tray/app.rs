@@ -470,6 +470,7 @@ impl App {
             recent: self.history.iter().take(RECENT_SHOWN).cloned().collect(),
             hotkey: self.settings.hotkey,
             cleanup: self.settings.cleanup,
+            offer_claude: self.has_api_key == Some(true) || self.settings.cleanup == CleanupMode::Claude,
             ollama_model: self.settings.ollama_model.clone(),
             local_models: self.local_models.clone(),
             microphone: self.settings.microphone.clone(),

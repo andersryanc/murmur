@@ -43,6 +43,8 @@ pub struct MenuView {
     pub recent: Vec<String>,
     pub hotkey: Hotkey,
     pub cleanup: CleanupMode,
+    /// Whether Cleanup lists Claude: once an API key is found, or while it's the current choice.
+    pub offer_claude: bool,
     pub ollama_model: String,
     pub local_models: Vec<String>,
     pub microphone: Option<String>,
@@ -115,6 +117,7 @@ impl BuiltMenu {
         ];
         let modes = modes
             .into_iter()
+            .filter(|&(mode, _)| mode != CleanupMode::Claude || view.offer_claude)
             .map(|(mode, label)| b.check(label, view.cleanup == mode, Action::Cleanup(mode)))
             .collect();
         items.push(submenu("Cleanup", modes));

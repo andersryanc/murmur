@@ -9,8 +9,8 @@ Push-to-talk dictation for macOS and Linux (Hyprland). Hold a key, speak, and po
 The pipeline:
 
 ```
-hotkey ─▶ mic capture ─▶ on-device STT ─▶ Claude cleanup ─▶ paste into frontmost app
-                         (Parakeet, CPU)   (Haiku 5.5)
+hotkey ─▶ mic capture ─▶ on-device STT ─▶ cleanup ─▶ paste into frontmost app
+                         (Parakeet, CPU)   (local model via Ollama, or Claude Haiku)
 ```
 
 Most of the quality comes from the cleanup pass. It fixes misheard words, drops filler and false starts, keeps only the final version of a self-correction, adds punctuation, and formats spoken lists as markdown when the target app allows it.
@@ -37,7 +37,7 @@ tail -f ~/Library/Logs/Squawk/squawk.log
 
 The installed app is outside `target/`, so `cargo clean` leaves it alone. It goes to `~/Applications` instead if you can't write to `/Applications`. Run the script again to update; it quits the running Squawk and opens the new one.
 
-The first launch downloads the Parakeet model (~480 MB). Allow **Microphone** and turn on Squawk under **System Settings › Privacy & Security › Accessibility**. Accessibility lets Squawk see the push-to-talk key and paste at your cursor. Both permissions persist across rebuilds as long as you sign with the same certificate. Store your [API key](#api-key) for Claude cleanup. The menu's **Launch at Login** starts it with your Mac.
+The first launch downloads the Parakeet model (~480 MB). Allow **Microphone** and turn on Squawk under **System Settings › Privacy & Security › Accessibility**. Accessibility lets Squawk see the push-to-talk key and paste at your cursor. Both permissions persist across rebuilds as long as you sign with the same certificate. Cleanup runs on a local model by default: install [Ollama](https://ollama.com) and `ollama pull qwen3.5:9b`. For Claude Haiku instead, store an [API key](#api-key). The menu's **Launch at Login** starts it with your Mac.
 
 Hold **fn** (changeable in the menu), speak, and release. The text is pasted wherever your cursor is.
 
@@ -50,11 +50,11 @@ Hold **fn** (changeable in the menu), speak, and release. The text is pasted whe
 - **fn key:** set **System Settings › Keyboard › "Press 🌐 key to"** to **Do Nothing**, or macOS will open the emoji picker or its own dictation. You can pick Right ⌥ or Right ⌘ instead. A quick fn tap (under 200 ms) is left alone, so it still works as the Globe key.
 - **Chords are ignored:** typing another key while holding the hotkey (e.g. ⌥← to jump words) cancels the recording.
 - **Context:** the frontmost app sets the cleanup style. Slack and Messages get chat style, Mail gets email, Notes and Obsidian get markdown notes, editors and terminals get code.
-- **Cleanup** (menu): **Claude Haiku** (cloud, most reliable, ~1.3 s), **Local Model** via Ollama (default `qwen3.5:9b`, ~250 ms, occasional slips such as an invented heading or a dropped "yeah"; `ollama pull qwen3.5:9b` first), or **Off** (paste Parakeet's transcript as-is). The menu shows how long the last dictation's speech and cleanup steps took.
+- **Cleanup** (menu): **Local Model** via Ollama (the default; `qwen3.5:9b` unless you pick another, ~250 ms, occasional slips such as an invented heading or a dropped "yeah"; `ollama pull qwen3.5:9b` first), **Claude Haiku** (cloud, most reliable, ~1.3 s; listed once you've stored an [API key](#api-key)), or **Off** (paste Parakeet's transcript as-is). The menu shows how long the last dictation's speech and cleanup steps took.
 - **Fallbacks:** if cleanup fails (no API key, Ollama not running), Squawk pastes the raw transcript and says so. Without Accessibility, it copies the text so you can ⌘V.
 - **Dictionary** (menu › Dictionary…): **Words** are spellings to prefer (names, jargon), used by the cleanup step to fix near-misses. **Replacements** are exact "when I say X, write Y" fixes, applied to every dictation even with cleanup off; they ignore case and match whole words only. Both live in `~/Library/Application Support/Squawk/dictionary.json`, which you can also edit by hand; changes apply on the next dictation.
 - **Microphone** (menu): System Default or any connected mic. Squawk remembers your choice without changing the system-wide default, and uses the default while that mic is unplugged.
-- **Sound Effects** (menu): a start and stop sound in one of four styles, all synthesized in code: **Wood** (low, woody; default), **Soft** (pure round tones with a faint grace note), **Chime** (bright, bell-like) or **Bubble** (a single note that swoops up or down). Picking one plays a preview.
+- **Sound Effects** (menu): a start and stop sound in one of four styles, all synthesized in code: **Wood** (low, woody), **Soft** (pure round tones with a faint grace note; default), **Chime** (bright, bell-like) or **Bubble** (a single note that swoops up or down). Picking one plays a preview.
 - **Clipboard:** the dictated text stays on the clipboard after pasting, so you can paste it again (or yourself, if no text field had focus).
 - **Settings** live in `~/Library/Application Support/Squawk/settings.json`.
 
@@ -80,13 +80,15 @@ squawkctl doctor
 
 ## API key
 
-Create a key at [platform.claude.com](https://platform.claude.com/settings/keys). `ANTHROPIC_API_KEY` in the environment overrides the stored key if set.
+Only Claude Haiku cleanup needs one; without a key, the Cleanup menu offers the local model and Off. Create a key at [platform.claude.com](https://platform.claude.com/settings/keys). `ANTHROPIC_API_KEY` in the environment overrides the stored key if set.
 
 On macOS, store it in your login Keychain. The command prompts for the key, so it never lands in shell history; add `-U` to replace a stored key:
 
 ```bash
 security add-generic-password -s com.plyhdrn.squawk -a anthropic-api-key -w
 ```
+
+Squawk looks for the key when it starts, so quit and reopen it to see Claude Haiku under Cleanup.
 
 On Linux, it's read from the Secret Service keyring; [`linux/README.md`](linux/README.md) has the command.
 
