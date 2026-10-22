@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "plyhdrn.murmur",
+  "name": "Murmur",
+  "version": "1.1.0",
+  "author": "Ryan Anderson",
+  "description": "Shows Murmur listening and working: a pill at the bottom of the screen with the mic level while you dictate, and a bar menu for its settings.",
+  "kinds": ["panel", "bar-widget"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "panel": "Murmur.qml",
+    "barWidget": "MurmurBar.qml"
+  },
+  "barWidget": {
+    "displayName": "Murmur",
+    "description": "Murmur's status, cleanup, microphone and sound settings, and recent dictations.",
+    "category": "Audio",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

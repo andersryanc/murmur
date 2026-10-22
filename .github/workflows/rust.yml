@@ -1,0 +1,78 @@
+# Formatting, lints and tests for the Rust workspace in rust/, on the two platforms Murmur ships
+# for: macOS (Apple Silicon) and Linux (x86_64, like the Omarchy machine). Clippy runs on both
+# because each OS compiles its own platform code. No releases are built here.
+name: Rust
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch or PR replaces a run still in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Incremental builds only help locally; on CI they just make the cache bigger.
+  CARGO_INCREMENTAL: 0
+
+defaults:
+  run:
+    working-directory: rust
+
+jobs:
+  check:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+          - name: Linux
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # cpal's ALSA backend needs the ALSA headers to build. sherpa-onnx downloads its own
+      # prebuilt libraries during the build, so it needs nothing installed.
+      - name: Install Linux packages
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libasound2-dev pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      # sherpa-onnx's build script would download its prebuilt libraries into target/, which
+      # rust-cache prunes before saving: a run that restored the cache skipped the build script
+      # and the macOS link failed with "library 'sherpa-onnx-c-api' not found". Download them
+      # here instead, outside target/, and point the build script at them. The archive is the
+      # one the build script would pick: shared libraries on macOS, static on Linux.
+      - name: Download sherpa-onnx
+        run: |
+          version=$(grep -A1 '^name = "sherpa-onnx-sys"' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')
+          kind=$([[ $RUNNER_OS == macOS ]] && echo osx-arm64-shared-lib || echo linux-x64-static-lib)
+          archive=sherpa-onnx-v$version-$kind
+          mkdir -p "$RUNNER_TEMP/sherpa-onnx"
+          curl -fsSL --retry 3 "https://github.com/k2-fsa/sherpa-onnx/releases/download/v$version/$archive.tar.bz2" \
+            | tar -xj -C "$RUNNER_TEMP/sherpa-onnx"
+          echo "SHERPA_ONNX_LIB_DIR=$RUNNER_TEMP/sherpa-onnx/$archive/lib" >> "$GITHUB_ENV"
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      # Tests that need the speech model, a Claude key or a desktop are #[ignore]d and skipped.
+      - name: Test
+        run: cargo test --workspace --locked
