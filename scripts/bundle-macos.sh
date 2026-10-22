@@ -36,7 +36,7 @@ BUILD=$(git rev-list --count HEAD 2>/dev/null || echo 1)
 echo "Building squawk $VERSION ($BUILD) in release…"
 cargo build --release -p squawk
 
-echo "Assembling $APP…"
+echo "Assembling ${APP}…"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp target/release/squawkctl "$APP/Contents/MacOS/Squawk"
