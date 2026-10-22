@@ -23,7 +23,7 @@ impl TargetContext {
 }
 
 // prompt.rs
-pub const SYSTEM: &str;            // byte-for-byte the Swift CleanupPrompt.system
+pub const SYSTEM: &str;            // the system prompt
 pub const EMPTY_MARKER: &str;      // "<empty/>"
 pub fn finalize(output: &str, transcript: &str) -> String;
 pub fn is_only_filler(text: &str) -> bool;
@@ -44,7 +44,7 @@ pub const SERVICE: &str = "com.plyhdrn.murmur";
 pub const ACCOUNT: &str = "anthropic-api-key";
 pub fn load() -> Option<String>;  // ANTHROPIC_API_KEY, then the OS key store
 
-// dictionary.rs  (same JSON as the Swift app: {"words": [..], "replacements": [{"from","to"}]})
+// dictionary.rs  (plain JSON: {"words": [..], "replacements": [{"from","to"}]})
 pub struct Dictionary { pub words: Vec<String>, pub replacements: Vec<Replacement> }
 pub struct Replacement { pub from: String, pub to: String }
 impl Dictionary {
@@ -67,12 +67,12 @@ impl SoundTheme { pub fn start_sound(self) -> Vec<u8>; pub fn stop_sound(self) -
 
 // paths.rs
 pub fn data_dir() -> PathBuf;    // macOS ~/Library/Application Support/Murmur, Windows %APPDATA%\Murmur,
-                                 // Linux $XDG_CONFIG_HOME/murmur (matches the Swift dictionary location)
+                                 // Linux $XDG_CONFIG_HOME/murmur (where earlier versions kept it)
 pub fn models_dir() -> PathBuf;  // macOS/Windows data_dir()/models, Linux $XDG_DATA_HOME/murmur/models
 pub fn log_path() -> PathBuf;
 
 // settings.rs  (data_dir()/settings.json, every field optional; on Linux data_dir()/config.json,
-//               the hand-edited file the Swift Linux build already wrote, read in place)
+//               the hand-edited file, read in place)
 pub enum Hotkey { Fn, RightOption, RightCommand, RightAlt, RightCtrl }  // serde camelCase; label()
 pub enum CleanupMode { Claude, Ollama, Off }
 pub struct Settings {

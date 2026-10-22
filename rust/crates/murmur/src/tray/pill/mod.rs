@@ -1,6 +1,6 @@
 //! The recording pill: the small overlay near the bottom of the screen that shows Murmur
 //! listening (a red dot and the microphone level), working ("Murmuring…") or warning about
-//! something for a moment. A port of the Swift `HUDController` and `HUDView`.
+//! something for a moment.
 //!
 //! The drawing (`render.rs`) is plain Rust shared by every platform; only the window that shows
 //! it is OS-specific. The window never takes focus: if it did, the paste would land in the
@@ -25,16 +25,16 @@ use std::time::{Duration, Instant};
 
 use render::{Content, Renderer};
 
-/// How many level bars the meter shows, as in the Swift app.
+/// How many level bars the meter shows.
 pub const LEVELS: usize = 14;
 
 const FRAME: Duration = Duration::from_nanos(1_000_000_000 / 30);
 /// How long a notice stays up.
 const NOTICE: Duration = Duration::from_millis(2500);
 const FADE: Duration = Duration::from_millis(150);
-/// The width eases toward its new size over roughly the Swift spring's 0.25 s.
+/// The width eases toward its new size over roughly 0.25 s.
 const WIDTH_EASING: f32 = 0.06;
-/// The level bars ease toward each new reading over the Swift animation's 0.08 s.
+/// The level bars ease toward each new reading over about 0.08 s.
 const LEVEL_EASING: f32 = 0.08;
 
 /// What the app wants the pill to show; `None` hides it.

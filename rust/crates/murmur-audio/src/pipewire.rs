@@ -1,8 +1,7 @@
 //! Recording from a PipeWire node by name, on Linux.
 //!
-//! The Swift Linux build recorded with `pw-record --target <node>`, so its settings name the
-//! microphone by PipeWire node name (`pw-record --list-targets`, e.g.
-//! `alsa_input.usb-Blue_Yeti-00.analog-stereo`). Capture now goes through ALSA, where those names
+//! Linux settings name the microphone by PipeWire node name (`pw-record --list-targets`, e.g.
+//! `alsa_input.usb-Blue_Yeti-00.analog-stereo`). Capture goes through ALSA, where those names
 //! mean nothing, so such a name is opened through pipewire-alsa's `pipewire` PCM instead, whose
 //! `NODE` argument becomes the stream's `target.object` (a node name or serial). That plugin is
 //! what makes ALSA reach PipeWire at all on a PipeWire desktop, so it's already installed there.

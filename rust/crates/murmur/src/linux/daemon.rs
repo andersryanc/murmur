@@ -1,6 +1,5 @@
 //! `murmur daemon`: owns the dictation engine, serves control-socket commands into it, and
-//! sends its events to watchers (the Omarchy pill). A port of the Swift `Daemon` and
-//! `runDaemon`.
+//! sends its events to watchers (the Omarchy pill).
 //!
 //! Three threads matter. The control server's thread owns the [`Engine`] and runs each command
 //! on it, so the engine has one owner as it expects. The main thread receives everything else
@@ -113,7 +112,7 @@ pub fn run() -> ExitCode {
     drop(watchers);
     log::info!("Murmur stopped");
     // Skips the libraries' exit handlers, which can crash while onnxruntime's worker threads
-    // are still running (the Swift daemon did the same).
+    // are still running.
     // SAFETY: _exit ends the process at once; nothing after it runs.
     unsafe { libc::_exit(0) }
 }
@@ -176,7 +175,7 @@ fn reload(engine: &mut Engine, settings: Settings) {
 }
 
 fn start(engine: &mut Engine, tx: &Sender<Message>) -> String {
-    // Re-read every time, as the Swift daemon did, so edits to config.json apply to the next
+    // Re-read every time, so edits to config.json apply to the next
     // dictation without a restart. (`model` and `threads` only apply when the daemon starts.)
     engine.set_settings(config::load().settings);
     match engine.press(murmur_platform::target_context()) {

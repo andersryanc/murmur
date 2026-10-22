@@ -1,14 +1,13 @@
 # Murmur
 
 Murmur, the push-to-talk dictation app: one codebase for macOS and Linux, with Windows to come.
-It replaces the Swift app in `../App`, which is being retired (see the
-[roadmap](../ROADMAP.md#retire-the-swift-app)). The crates and the interfaces
+The crates and the interfaces
 between them are described in [CONTRACTS.md](CONTRACTS.md); user-facing setup is in the
 [top-level README](../README.md).
 
 | Crate | What |
 |---|---|
-| `murmur-core` | Cleanup prompt (checked against the Swift copy by a test), Claude and Ollama cleaners, Dictionary, settings, sounds, voice activity, file locations, API key |
+| `murmur-core` | Cleanup prompt, Claude and Ollama cleaners, Dictionary, settings, sounds, voice activity, file locations, API key |
 | `murmur-stt` | Parakeet TDT 0.6B v3 (int8) on the CPU through sherpa-onnx; downloads the model on first use |
 | `murmur-audio` | Mic capture with cpal, resampled to 16 kHz; sound playback |
 | `murmur-platform` | Hotkey, paste, permissions, frontmost app. macOS and Linux (Hyprland); Windows is a stub |
@@ -25,10 +24,9 @@ open target/Murmur.app
 tail -f ~/Library/Logs/Murmur/murmur.log
 ```
 
-- **Quit the Swift Murmur first** if it's installed: both listen for fn.
-- The bundle ID is `com.plyhdrn.murmur-rs`, so it gets its own Accessibility and Microphone
-  grants, separate from the Swift app's. Settings live in `~/Library/Application Support/Murmur/settings.json`;
-  the Dictionary and the API key (Keychain) are shared with the Swift app.
+- The bundle ID is `com.plyhdrn.murmur-rs`. Settings live in
+  `~/Library/Application Support/Murmur/settings.json`, the Dictionary in `dictionary.json` beside
+  it, and the API key in the Keychain.
 - sherpa-onnx is linked as shared libraries on macOS (twice as fast as the static build), so
   the bundle carries `libsherpa-onnx-c-api.dylib` and `libonnxruntime.dylib` in `Contents/Frameworks`.
 

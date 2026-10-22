@@ -1,5 +1,5 @@
-//! The Linux front end: a command-line tool and a daemon, for Hyprland (built for Omarchy). A
-//! port of the Swift `Linux/Sources/murmur`, with the dictation loop now in `murmur-engine`.
+//! The Linux front end: a command-line tool and a daemon, for Hyprland (built for Omarchy). The
+//! dictation loop itself is in `murmur-engine`.
 //!
 //! Wayland doesn't let an app watch keys globally, so the push-to-talk key is a Hyprland binding
 //! that runs `murmur start` on press and `murmur stop` on release. Those send one command over

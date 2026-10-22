@@ -1,6 +1,5 @@
 //! Fixed dictations covering the cleanup pass's main jobs, for timing and comparing cleaners
-//! (`murmur bench` on Linux). The same cases as MurmurKit's `benchCases`, so the numbers can be
-//! compared with the Swift build's.
+//! (`murmur-eval bench`, and `murmur bench` on Linux).
 
 use crate::TargetContext;
 

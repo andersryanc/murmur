@@ -52,10 +52,8 @@ enum State {
 /// Every hold produces either nothing (a quick tap, or a shortcut typed before the delay ran out)
 /// or `Pressed` followed by exactly one `Released` or `Cancelled`.
 ///
-/// This follows the Swift `HotkeyMonitor`, with one tightening: after a shortcut the Swift app
-/// could still send a release (and repeat chords) that `AppModel` then ignored because it was no
-/// longer recording. Here a written-off hold stays silent until the key comes up, so the app
-/// never sees an event it has to ignore.
+/// A written-off hold (one that became a shortcut) stays silent until the key comes up, so the
+/// app never sees a release or repeated chord it has to ignore.
 #[derive(Clone, Debug)]
 pub struct HoldTracker {
     state: State,

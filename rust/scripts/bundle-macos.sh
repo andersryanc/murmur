@@ -1,8 +1,8 @@
 #!/bin/bash
 # Builds the Rust Murmur in release and assembles a signed rust/target/Murmur.app.
 #
-# The bundle ID is com.plyhdrn.murmur-rs, deliberately not the Swift app's, so the two get
-# separate Accessibility and Microphone permissions and can't overwrite each other's grants.
+# The bundle ID is com.plyhdrn.murmur-rs, from when this ran beside the Swift app. macOS ties the
+# Accessibility and Microphone grants to it, so changing it means granting them again.
 # Signing uses the hardened runtime with the audio-input entitlement, which macOS requires
 # before it will show the microphone prompt to a hardened app.
 #

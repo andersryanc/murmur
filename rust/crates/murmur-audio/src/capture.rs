@@ -79,7 +79,7 @@ impl Recorder {
     /// `on_level` gets a 0...1 meter value about every 50 ms, called on the audio thread.
     ///
     /// On Linux a name that isn't one of cpal's (ALSA) devices is taken to be a PipeWire node
-    /// name, as the Swift build's `pw-record --target` used; see `pipewire.rs`.
+    /// name, as `pw-record --target` takes; see `pipewire.rs`.
     pub fn start(device: Option<&str>, on_level: impl Fn(f32) + Send + 'static) -> Result<Self> {
         #[cfg(target_os = "linux")]
         if let Some(node) = device.filter(|name| crate::pipewire::is_node_name(name)) {

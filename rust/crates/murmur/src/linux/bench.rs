@@ -71,7 +71,7 @@ pub fn run(args: &[String]) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// The middle value (the upper one of an even count, as the Swift version did).
+/// The middle value (the upper one of an even count).
 fn median(values: &[Duration]) -> Duration {
     let mut sorted = values.to_vec();
     sorted.sort();

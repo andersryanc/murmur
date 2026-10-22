@@ -1,4 +1,4 @@
-//! Launch at Login, a port of the Swift `AppModel.launchAtLogin`. macOS only: the app bundle is
+//! Launch at Login. macOS only: the app bundle is
 //! registered as a login item with `SMAppService.mainApp`.
 //!
 //! The menu's checkmark always shows what the system says rather than a saved setting, since the

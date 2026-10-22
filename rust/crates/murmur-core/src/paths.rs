@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-/// Where settings and the dictionary live. The same folders the Swift apps use, so an existing
+/// Where settings and the dictionary live. The same folders earlier versions used, so an existing
 /// `dictionary.json` carries over: `~/Library/Application Support/Murmur` on macOS,
 /// `%APPDATA%\Murmur` on Windows, `$XDG_CONFIG_HOME/murmur` (usually `~/.config/murmur`) on Linux.
 pub fn data_dir() -> PathBuf {
@@ -12,7 +12,7 @@ pub fn data_dir() -> PathBuf {
 }
 
 /// Speech models. Under `data_dir()` on macOS and Windows; `$XDG_DATA_HOME/murmur/models` on
-/// Linux, where the Swift Linux build already downloads them.
+/// Linux, where earlier versions downloaded them too.
 pub fn models_dir() -> PathBuf {
     #[cfg(target_os = "linux")]
     let dir = xdg("XDG_DATA_HOME", ".local/share").join("murmur/models");

@@ -1,4 +1,4 @@
-//! The tray menu, a port of the Swift `MenuContent`.
+//! The tray menu.
 //!
 //! The menu is rebuilt from a [`MenuView`] snapshot whenever that changes, rather than patched
 //! item by item: it is small, and rebuilding keeps the radio groups and optional rows simple.

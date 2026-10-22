@@ -22,7 +22,6 @@ Most of the quality comes from the cleanup pass. It fixes misheard words, drops 
 | [`rust/`](rust) | **Murmur.** One Rust workspace for both platforms: the macOS menu-bar app and the Linux daemon share the dictation engine, cleanup prompt, Dictionary and speech model. Crates are described in [`rust/README.md`](rust/README.md) and [`rust/CONTRACTS.md`](rust/CONTRACTS.md). |
 | [`rust/linux/`](rust/linux) | Linux setup: the install script, Hyprland bindings and the Omarchy pill and bar menu. Start with [`rust/linux/README.md`](rust/linux/README.md). |
 | [`rust/eval/`](rust/eval) | Recordings of your voice for the [eval](#eval-harness), and its reports. Both stay local. |
-| [`App/`](App), [`Core/`](Core) | The original Swift macOS app and its `MurmurKit`/`MurmurCore` packages, being retired. `Core/Sources/MurmurKit/CleanupPrompt.swift` is a copy of the cleanup prompt that a Rust test keeps in step (see [The Swift app](#the-swift-app)). |
 
 Murmur is open source and isn't distributed as a prebuilt app: you build it on the machine that runs it.
 
@@ -38,7 +37,7 @@ tail -f ~/Library/Logs/Murmur/murmur.log
 
 The first launch downloads the Parakeet model (~480 MB). Allow **Microphone** and turn on Murmur under **System Settings › Privacy & Security › Accessibility**. Accessibility lets Murmur see the push-to-talk key and paste at your cursor. Both permissions persist across rebuilds as long as you sign with the same certificate. Store your [API key](#api-key) for Claude cleanup. The menu's **Launch at Login** starts it with your Mac.
 
-If the Swift Murmur is installed, quit it first: both listen for fn. The Rust app's bundle ID is `com.plyhdrn.murmur-rs`, so it has its own permission grants; the Dictionary and API key are shared.
+If you still have the earlier Swift version of Murmur installed, quit it first: both listen for fn. They have different bundle IDs, so each has its own permission grants; the Dictionary and API key are shared.
 
 Hold **fn** (changeable in the menu), speak, and release. The text is pasted wherever your cursor is.
 
@@ -120,16 +119,5 @@ $E clean "um so first update the readme second tag the release" --context notes
 - **Clips** live in `rust/eval/clips/` as `<name>.wav` plus a `<name>.json` sidecar (`reference`, `intended`, `context`). Any WAV file you drop in works too. Audio and reports are gitignored.
 - **Contexts**: `plain`, `chat`, `email`, `notes`, `code`. They set how the cleanup pass formats output.
 - **Dictionary**: every command uses the app's dictionary (`dictionary.json`) so results match real use. Pass `--dictionary <file>` to try another, or `--dictionary none` for none.
-- **Cleanup prompt**: `rust/crates/murmur-core/src/prompt.rs`. Try a draft first with `--prompt draft.md`. Until the Swift app is deleted, a test keeps `Core/Sources/MurmurKit/CleanupPrompt.swift` byte-for-byte the same, so edit both.
+- **Cleanup prompt**: `rust/crates/murmur-core/src/prompt.rs`. Try a draft first with `--prompt draft.md`.
 
-## The Swift app
-
-The original macOS app, in `App/` and `Core/`, being retired. It needs Xcode 26 and XcodeGen, and signs with the same [self-signed certificate](#signing):
-
-```bash
-brew install xcodegen   # once
-printf 'MURMUR_SIGN_IDENTITY = Murmur Self-Signed\nDEVELOPMENT_TEAM =\n' > App/Signing.local.xcconfig   # once; see App/Signing.xcconfig
-./scripts/install.sh    # build Release, install to /Applications (~/Applications without admin rights), launch
-```
-
-If `xcodebuild` says it needs Xcode rather than the Command Line Tools, run `sudo xcode-select -s /Applications/Xcode.app`, or without admin rights, `export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.

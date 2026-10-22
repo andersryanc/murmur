@@ -13,7 +13,7 @@ Hyprland key bind ─▶ murmur start/stop ─▶ daemon ─▶ ALSA (pipewire-a
 - **The on-screen pill** (like the Mac pill) is an [Omarchy shell](https://omarchy.org) plugin in [`omarchy-plugin/`](omarchy-plugin). It shows the mic level while you speak, "Murmuring…" while it works, and any problem for a moment afterwards.
 - **The bar menu** (like the Mac menu-bar menu) is in the same plugin: a mic icon in the Omarchy bar that turns red while recording and dims when the daemon isn't running. Click it for the cleanup mode and local model, the microphone, the sound effects, the last five dictations (click one to copy it), the Dictionary, and starting, restarting or quitting the daemon.
 
-This replaces the Swift Linux build (`Linux/`, removed from the repo; it's in git history before the Rust rewrite). It reads that build's `~/.config/murmur/config.json` and model folder as they are, so switching needs no setup beyond installing.
+If you used the earlier Swift build for Linux, this reads its `~/.config/murmur/config.json` and model folder as they are, so switching needs no setup beyond installing.
 
 ## Status
 
@@ -78,7 +78,7 @@ rust/linux/install.sh
 
 This builds a release binary and installs `~/.local/bin/murmur`. On Omarchy it also installs the pill and bar menu plugin to `~/.config/omarchy/plugins/plyhdrn.murmur/` and puts it on the bar, left of the tray, the first time (`omarchy plugin disable plyhdrn.murmur` turns it off; drag the icon to move it). Run it again after pulling changes; it restarts the daemon if one is running.
 
-The speech model (~480 MB) is downloaded into `~/.local/share/murmur/models/` the first time the daemon starts; `murmur status` says `loading` until it's ready. If the Swift build already downloaded it there, it's used as is.
+The speech model (~480 MB) is downloaded into `~/.local/share/murmur/models/` the first time the daemon starts; `murmur status` says `loading` until it's ready. If an earlier version already downloaded it there, it's used as is.
 
 ### 4. API key
 
@@ -138,7 +138,7 @@ It checks each tool, pipewire-alsa, the model, the API key (or the Ollama model)
 
 ## Settings
 
-`~/.config/murmur/config.json`, the same file the Swift build used (optional; every field has a default). The bar menu changes `cleanup`, `ollamaModel`, `microphone` and `sounds` with `murmur set <key> <value>`, which keeps the rest of the file as it is; you can also edit it by hand. It's re-read at the start of each dictation (and at once after `murmur set`), except `model` and `threads`, which apply when the daemon starts.
+`~/.config/murmur/config.json` (optional; every field has a default). The bar menu changes `cleanup`, `ollamaModel`, `microphone` and `sounds` with `murmur set <key> <value>`, which keeps the rest of the file as it is; you can also edit it by hand. It's re-read at the start of each dictation (and at once after `murmur set`), except `model` and `threads`, which apply when the daemon starts.
 
 ```json
 {
@@ -153,7 +153,7 @@ It checks each tool, pipewire-alsa, the model, the API key (or the Ollama model)
 - **cleanup**: `claude` (default), `ollama` (runs `ollamaModel`; `ollama pull` it first) or `off` (paste Parakeet's transcript as-is).
 - **sounds**: `wood` (default), `soft`, `chime`, `bubble` or `off`.
 - **microphone**: a PipeWire node name from `pw-record --list-targets` (or `wpctl status`); leave it out to use the default input. It's opened through pipewire-alsa as the ALSA device `pipewire:NODE=<name>`. If that can't be opened (no pipewire-alsa, PipeWire not running), Murmur logs it and records from the default input instead.
-- **threads**: CPU threads for speech-to-text (default: the number of cores, up to 8; the Swift build defaulted to 4).
+- **threads**: CPU threads for speech-to-text (default: the number of cores, up to 8).
 - **model**: a different sherpa-onnx Parakeet folder (default `~/.local/share/murmur/models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8`). A folder set here is never downloaded into.
 
 **Dictionary:** `~/.config/murmur/dictionary.json`, the same format as on the Mac (`~/Library/Application Support/Murmur/dictionary.json`), so you can copy that file over. Changes apply on the next dictation. The bar menu's Dictionary button opens it in a card over the screen, a port of the Mac Dictionary window ([`Dictionary.qml`](omarchy-plugin/Dictionary.qml)): Words and Replacements tabs, search, Return to add, double-click or Return to edit a row, Delete to remove, Ctrl+Z to undo, Esc to back out. It saves the file after each change and picks up edits made to it by hand. To open it from a key binding, run `omarchy-shell shell call plyhdrn.murmur openDictionary ""`.

@@ -5,7 +5,7 @@
 //! - **Replacements** are exact "when I say X, write Y" rules, applied to the transcript before
 //!   cleanup. They work even with cleanup off.
 //!
-//! Stored as plain, human-editable JSON, the same file the Swift app reads:
+//! Stored as plain, human-editable JSON:
 //! ```json
 //! {
 //!   "replacements" : [ { "from" : "cube control", "to" : "kubectl" } ],
@@ -19,8 +19,8 @@ use std::path::{Path, PathBuf};
 use fancy_regex::{NoExpand, Regex};
 use serde::{Deserialize, Serialize};
 
-/// Fields are declared in alphabetical order so the saved JSON has sorted keys, like the Swift
-/// app's.
+/// Fields are declared in alphabetical order so the saved JSON has sorted keys, which keeps hand
+/// edits and diffs tidy.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Dictionary {
     #[serde(default)]
@@ -232,7 +232,7 @@ mod tests {
     }
 
     #[test]
-    fn reads_the_swift_format() {
+    fn reads_the_documented_format() {
         let json = r#"{
   "replacements" : [ { "from" : "cube control", "to" : "kubectl" } ],
   "words" : [ "Plyhdrn", "Kubernetes" ]

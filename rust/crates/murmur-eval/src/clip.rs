@@ -21,7 +21,7 @@ pub fn results_dir() -> PathBuf {
     eval_dir().join("results")
 }
 
-/// The sidecar, `<name>.json`. Same fields as the Swift eval's, so its clips work unchanged.
+/// The sidecar, `<name>.json`.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ClipMeta {
     /// Exactly what was said, word for word. Scores the raw transcript (WER).

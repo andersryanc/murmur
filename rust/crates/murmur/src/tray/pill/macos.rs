@@ -1,5 +1,4 @@
-//! Shows the pill's pixels in a borderless, non-activating `NSPanel`, configured like the Swift
-//! `HUDController`'s.
+//! Shows the pill's pixels in a borderless, non-activating `NSPanel`.
 //!
 //! It must never take focus or become key, or the paste would land in the pill instead of the
 //! app being dictated into. A non-activating borderless panel can't become key, it ignores the
@@ -61,7 +60,7 @@ impl Window {
         );
         panel.setBackgroundColor(Some(&NSColor::clearColor()));
         panel.setOpaque(false);
-        // The shadow is drawn into the image, matching SwiftUI's rather than the window's.
+        // The shadow is drawn into the image (see `render.rs`) rather than by the window.
         panel.setHasShadow(false);
         panel.setIgnoresMouseEvents(true);
         panel.setHidesOnDeactivate(false);

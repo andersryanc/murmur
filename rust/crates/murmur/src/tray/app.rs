@@ -1,6 +1,6 @@
 //! The app's state and what it does with each event: hotkey presses into the dictation engine,
-//! engine events into the pill, icon and menu, and the menu's choices. A port of the Swift
-//! `AppModel`, whose dictation loop now lives in `murmur-engine`. Lives on the main thread; see
+//! engine events into the pill, icon and menu, and the menu's choices. The dictation loop itself
+//! is in `murmur-engine`. Lives on the main thread; see
 //! `state.rs` for how other threads reach it.
 
 use std::sync::Mutex;
@@ -325,7 +325,6 @@ impl App {
         }
         // Note the target first: it's whatever was in front when the key went down. The engine
         // then blocks until audio is arriving, so nothing said after the start sound is lost.
-        // The Swift app also started capture on the main thread.
         let context = murmur_platform::target_context();
         if self.engine.press(context) == Press::Started {
             self.pill.start_recording();

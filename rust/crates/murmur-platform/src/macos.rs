@@ -1,6 +1,5 @@
 //! macOS: a Quartz event tap for the hotkey, the general pasteboard plus a synthetic ⌘V for
-//! pasting, Accessibility for permission, and NSWorkspace for the frontmost app. A port of
-//! `HotkeyMonitor.swift`, `Paster.swift` and `Permissions.swift`.
+//! pasting, Accessibility for permission, and NSWorkspace for the frontmost app.
 
 use std::cell::RefCell;
 use std::ffi::c_void;
@@ -87,7 +86,7 @@ const IDLE_WAIT: Duration = Duration::from_secs(1);
 /// Creating the tap needs Accessibility permission, which Murmur needs anyway to paste. Without
 /// it `start` still succeeds: the thread checks `AXIsProcessTrusted` once a second and makes a
 /// fresh tap when it turns true, so granting permission in System Settings while the app is
-/// running starts the hotkey on its own (the Swift app polled and called `install()` again).
+/// running starts the hotkey on its own.
 /// [`is_listening`](Self::is_listening) says whether a tap is in place; macOS can hand out a
 /// listen-only tap before permission is granted, so pair it with [`has_input_permission`].
 pub struct HotkeyMonitor {
@@ -245,7 +244,7 @@ fn tap_thread(shared: Arc<Shared>, key: MacKey, on_event: Box<dyn Fn(HotkeyEvent
         }
 
         // Accessibility gets granted in System Settings while the app is running. macOS may hand
-        // out a tap before that which never sees a key, so, like the Swift app, make a fresh one
+        // out a tap before that which never sees a key, so make a fresh one
         // when permission flips on.
         if Instant::now() >= next_trust_check {
             next_trust_check = Instant::now() + IDLE_WAIT;
@@ -488,7 +487,7 @@ mod tests {
     }
 
     #[test]
-    fn key_codes_match_the_swift_app() {
+    fn key_codes() {
         assert_eq!(
             fn_key(),
             MacKey {

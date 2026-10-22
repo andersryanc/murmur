@@ -1,10 +1,9 @@
 //! Settings on Linux.
 //!
-//! `~/.config/murmur/config.json`, which the Swift Linux build already wrote, is read in place:
+//! `~/.config/murmur/config.json` is read in place:
 //! `murmur_core::Settings::path()` points there on Linux and reads its `cleanup`, `ollamaModel`,
 //! `sounds` and `microphone` keys, which have the same names and values as the Rust settings.
-//! The Swift build's two speech-model keys, `model` (another model folder) and `threads`, only
-//! matter here, so this module reads them itself. Every key is optional.
+//! The two speech-model keys, `model` (another model folder) and `threads`, only matter here, so this module reads them itself. Every key is optional.
 //!
 //! `microphone` is still a PipeWire node name (`pw-record --list-targets`); `murmur-audio`
 //! opens it through pipewire-alsa.
@@ -68,7 +67,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn reads_the_swift_builds_model_and_threads() {
+    fn reads_model_and_threads() {
         let json: Value =
             serde_json::from_str(r#"{"model": "/opt/parakeet", "threads": 4, "cleanup": "off"}"#).unwrap();
         assert_eq!(

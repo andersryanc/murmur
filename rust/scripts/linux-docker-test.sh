@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds and tests the Linux side of the workspace in a Docker container, so it can be checked
-# from a Mac. The whole repository is mounted (murmur-core's prompt test reads the Swift copy in
-# ../Core), and the build goes to target/linux-docker-<arch> so it never touches the macOS build.
+# from a Mac. The whole repository is mounted, and the build goes to target/linux-docker-<arch>
+# so it never touches the macOS build.
 #
 #   scripts/linux-docker-test.sh                 # cargo test, clippy and fmt on the whole workspace
 #   scripts/linux-docker-test.sh cargo build -p murmur-control   # any other command

@@ -1,4 +1,4 @@
-//! Draws the recording pill into an RGBA image, a port of the Swift `HUDView`.
+//! Draws the recording pill into an RGBA image.
 //!
 //! Plain Rust with no OS calls, so every platform's window shows the same pixels and only
 //! putting them on screen differs (see `macos.rs`). Every shape in the pill is a circle or a
@@ -11,7 +11,7 @@ use std::cell::RefCell;
 use ab_glyph::{Font, FontVec, GlyphId, PxScale, ScaleFont, VariableFont, point};
 
 /// The panel's size in points. The pill sits in the middle with room around it for its shadow,
-/// and grows or shrinks to fit what it shows, like the Swift one.
+/// and grows or shrinks to fit what it shows.
 pub const PANEL_WIDTH: f32 = 360.0;
 pub const PANEL_HEIGHT: f32 = 72.0;
 
@@ -28,7 +28,7 @@ const THINKING_SPACING: f32 = 4.0;
 /// `exclamationmark.circle.fill` at 13 pt is about this wide.
 const ICON: f32 = 15.0;
 
-/// SwiftUI's shadow: black at 35 %, radius 12 (a Gaussian with σ of half that), 4 pt down.
+/// The shadow: black at 35 %, radius 12 (a Gaussian with σ of half that), 4 pt down.
 const SHADOW_ALPHA: f32 = 0.35;
 const SHADOW_SIGMA: f32 = 6.0;
 const SHADOW_OFFSET: f32 = 4.0;
@@ -38,9 +38,9 @@ type Rgba = [f32; 4];
 const BLACK: Rgba = [0.0, 0.0, 0.0, 1.0];
 const BORDER: Rgba = [1.0, 1.0, 1.0, 0.12];
 const WHITE: Rgba = [1.0, 1.0, 1.0, 1.0];
-/// `Murmur.recording` in the Swift palette.
+/// Recording red.
 const RED: Rgba = [1.0, 0.23, 0.19, 1.0];
-/// SwiftUI's `.orange`.
+/// macOS's system orange.
 const ORANGE: Rgba = [1.0, 0.584, 0.0, 1.0];
 
 /// What the pill shows.
@@ -85,7 +85,7 @@ impl Renderer {
         }
     }
 
-    /// Loads the system UI font at medium weight, as the Swift pill uses.
+    /// Loads the system UI font at medium weight.
     pub fn with_system_font() -> Self {
         let font = system_font();
         if font.is_none() {
@@ -171,8 +171,8 @@ impl Renderer {
         canvas.into_image()
     }
 
-    /// The text cut short with "…" if it would make the pill wider than the panel (the Swift
-    /// pill's `lineLimit(1)`).
+    /// The text cut short with "…" if it would make the pill wider than the panel, so it
+    /// stays on one line.
     fn fit(&self, text: &str) -> String {
         let room = PANEL_WIDTH - 2.0 * (PADDING + SHADOW_SIGMA * 2.0) - ICON - SPACING;
         if self.text_width(text) <= room {
@@ -205,7 +205,7 @@ impl Renderer {
         width
     }
 
-    /// Draws one line of text starting at `x`, its line box centred on `cy` like SwiftUI does.
+    /// Draws one line of text starting at `x`, its line box centred on `cy`.
     fn text(&self, canvas: &mut Canvas, text: &str, x: f32, cy: f32, color: Rgba) {
         let Some(font) = &self.font else { return };
         let s = canvas.scale;
@@ -282,7 +282,7 @@ fn system_font() -> Option<FontVec> {
     CANDIDATES.iter().find_map(|path| {
         let bytes = std::fs::read(path).ok()?;
         let mut font = FontVec::try_from_vec(bytes).ok()?;
-        // SwiftUI's .medium: SF's weight axis puts Regular at 400, Medium at 510 and Bold at 700.
+        // Medium weight: SF's weight axis puts Regular at 400, Medium at 510 and Bold at 700.
         // Its optical size axis starts at 17, the Text cut AppKit uses for small sizes (the
         // default, 28, is the wider-set Display cut). Fonts without these axes ignore them.
         font.set_variation(b"wght", 510.0);
@@ -407,7 +407,7 @@ impl Canvas {
         self.capsule(rect, color);
     }
 
-    /// A line `width` points wide just inside the capsule's edge (SwiftUI's `strokeBorder`).
+    /// A line `width` points wide just inside the capsule's edge.
     fn capsule_border(&mut self, rect: Rect, width: f32, color: Rgba) {
         let px = rect.scaled(self.scale);
         let w = width * self.scale;
@@ -457,7 +457,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn widths_follow_the_swift_layout() {
+    fn recording_width() {
         let renderer = Renderer::new(None);
         let levels = [0.0; 14];
         // Dot, spacing, 14 bars with 13 gaps, and the padding.

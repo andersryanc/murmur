@@ -1,4 +1,4 @@
-//! The Dictionary window, a port of the Swift `DictionaryView`: your Words (spellings for the
+//! The Dictionary window: your Words (spellings for the
 //! cleanup step) and Replacements (exact "when I say X, write Y" rules).
 //!
 //! On macOS and Windows it's a small web page (`dictionary.html`) in a system web view, so one

@@ -1,6 +1,6 @@
 //! The tray icon, drawn in code so there are no image assets to ship: a waveform while idle, and
-//! the same waveform knocked out of a filled circle while recording (like the Swift app's
-//! `waveform` and `waveform.circle.fill` symbols).
+//! the same waveform knocked out of a filled circle while recording (like the SF Symbols
+//! `waveform` and `waveform.circle.fill`).
 //!
 //! On macOS the icon is a template image: only its alpha matters, and the menu bar tints it to
 //! match light or dark mode. Windows shows the colours as drawn, so there it's white,

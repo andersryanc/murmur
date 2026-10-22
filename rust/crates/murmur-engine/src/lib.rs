@@ -1,8 +1,6 @@
 //! The dictation engine every front end shares: press → record → release → queue → transcribe →
 //! Dictionary replacements → cleanup → paste, plus loading the speech model and the start-up
-//! warm-ups. A port of what the Swift `AppModel` (macOS) and `Daemon` (Linux) each did on their
-//! own; the Swift codebase made every change to the queue twice, once per platform, and this
-//! crate exists so that doesn't happen again.
+//! warm-ups. It's one crate so every change to the queue is made once, not once per platform.
 //!
 //! The front ends only translate. The macOS tray app turns the hotkey into [`Engine::press`] and
 //! [`Engine::release`] and engine [`Event`]s into the menu, pill and icon; the Linux daemon turns
@@ -41,7 +39,7 @@ pub const MINIMUM_HOLD: Duration = Duration::from_millis(300);
 pub const SOUND_VOLUME: f32 = 0.6;
 
 /// Where the speech model comes from. The defaults are what the Mac app uses; the Linux daemon
-/// passes the Swift build's `model` and `threads` overrides through here.
+/// passes `config.json`'s `model` and `threads` overrides through here.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Options {
     /// A model folder to load instead of the default. Never downloaded into: if it's missing

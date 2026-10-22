@@ -1,5 +1,5 @@
 //! The dictation pipeline after the key comes up: transcribe → Dictionary replacements →
-//! cleanup → paste, a port of the Swift `AppModel.process` and `Daemon.finish`.
+//! cleanup → paste.
 //!
 //! Finished recordings go into a queue served by one worker thread, so a new dictation can start
 //! while earlier ones are still processing, and they paste in the order they were spoken.

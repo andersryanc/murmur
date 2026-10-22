@@ -1,4 +1,4 @@
-//! Linux, for Hyprland on Wayland (built for Omarchy). Ported from the Swift `Desktop.swift`.
+//! Linux, for Hyprland on Wayland (built for Omarchy).
 //!
 //! Wayland doesn't let an app watch keys globally, so there is no hotkey monitor here: Hyprland
 //! key bindings run `murmur start` / `murmur stop`, which reach the daemon over its control
@@ -136,9 +136,7 @@ pub fn paste(text: &str) -> anyhow::Result<PasteOutcome> {
 ///
 /// wl-copy forks: the parent exits once the text is read, and a child stays behind to serve the
 /// clipboard until something else is copied. That child inherits whatever the parent was given,
-/// so anything that waits for those handles to close would hang until the next copy. The Swift
-/// app hit exactly this (Foundation's `Process` noticed a program had exited by a socket it
-/// passed in closing, and the child kept it open), which is why it used posix_spawn.
+/// so anything that waits for those handles to close would hang until the next copy.
 ///
 /// Here wl-copy gets a pipe on stdin only, which is written and then closed (the child has
 /// already read it), and null stdout and stderr, so there is nothing for its child to hold open

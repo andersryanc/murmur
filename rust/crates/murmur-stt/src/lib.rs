@@ -1,9 +1,8 @@
 //! Speech to text: NVIDIA Parakeet TDT 0.6B v3 (int8 ONNX) through sherpa-onnx, on the CPU.
 //!
-//! The same model the Mac app runs on the Neural Engine and the Swift Linux build runs through
-//! sherpa-onnx's C API. sherpa-onnx and onnxruntime are linked statically (the `sherpa-onnx`
-//! crate's default), so there are no shared libraries to ship; the ~480 MB model is downloaded on
-//! first run instead of bundled.
+//! On Linux sherpa-onnx and onnxruntime are linked statically (the `sherpa-onnx` crate's
+//! default); on macOS they're shared libraries, which run twice as fast there and ship inside
+//! Murmur.app. The ~480 MB model is downloaded on first run instead of bundled.
 
 use std::fs;
 use std::io::{self, Read};

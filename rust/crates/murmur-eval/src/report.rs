@@ -10,7 +10,7 @@ use serde::Serialize;
 
 use crate::clip::results_dir;
 
-/// One engine's go at one clip. Field names match the Swift eval's JSON.
+/// One engine's go at one clip.
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EngineResult {

@@ -1,7 +1,6 @@
 //! Everything in Murmur that doesn't depend on the OS: the cleanup prompt, the cleaners (Claude,
 //! Ollama), the personal dictionary, target context, voice activity, sound synthesis, settings
-//! and where files live. A port of `Core/Sources/MurmurKit`, which stays the reference until the
-//! Swift app is retired.
+//! and where files live.
 //!
 //! Network calls are blocking (no async runtime): the app runs each dictation on a worker thread.
 

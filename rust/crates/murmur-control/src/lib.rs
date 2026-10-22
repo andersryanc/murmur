@@ -6,7 +6,7 @@
 //! connects to the same socket, sends `watch`, and stays connected to receive one line per event
 //! to draw the on-screen pill.
 //!
-//! Ported from the Swift `ControlSocket.swift`. The wire format is plain text, one line each way,
+//! The wire format is plain text, one line each way,
 //! and must stay as it is: the plugin parses it. Nothing here is Linux-specific, so it builds and
 //! is tested on macOS too.
 
