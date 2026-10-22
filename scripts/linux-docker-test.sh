@@ -4,15 +4,15 @@
 # so it never touches the macOS build.
 #
 #   scripts/linux-docker-test.sh                 # cargo test, clippy and fmt on the whole workspace
-#   scripts/linux-docker-test.sh cargo build -p murmur-control   # any other command
+#   scripts/linux-docker-test.sh cargo build -p squawk-control   # any other command
 #
-# MURMUR_DOCKER_ARCH=amd64 (default, what the Omarchy machine runs; emulated on Apple silicon)
+# SQUAWK_DOCKER_ARCH=amd64 (default, what the Omarchy machine runs; emulated on Apple silicon)
 # or arm64 (native on Apple silicon, much faster, fine for compile checks).
 set -euo pipefail
 
-arch="${MURMUR_DOCKER_ARCH:-amd64}"
+arch="${SQUAWK_DOCKER_ARCH:-amd64}"
 rust_image="rust:1.99.0-bookworm"
-image="murmur-linux-test:$arch"
+image="squawk-linux-test:$arch"
 repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
 
 # libasound2-dev and pkg-config for cpal (ALSA). sherpa-onnx's static Linux build is downloaded
@@ -33,19 +33,19 @@ if [ $# -eq 0 ]; then
         && cargo fmt --check"
 fi
 
-# MURMUR_MODELS=<folder> mounts a models folder read-only where the Linux build looks for it,
+# SQUAWK_MODELS=<folder> mounts a models folder read-only where the Linux build looks for it,
 # so running the binary here skips the slow download, e.g. the Mac app's:
-#   MURMUR_MODELS="$HOME/Library/Application Support/Murmur/models" scripts/linux-docker-test.sh bash
+#   SQUAWK_MODELS="$HOME/Library/Application Support/Squawk/models" scripts/linux-docker-test.sh bash
 extra=()
-if [ -n "${MURMUR_MODELS:-}" ]; then
-    extra+=(-v "$MURMUR_MODELS":/root/.local/share/murmur/models:ro)
+if [ -n "${SQUAWK_MODELS:-}" ]; then
+    extra+=(-v "$SQUAWK_MODELS":/root/.local/share/squawk/models:ro)
 fi
 
 # Named volumes keep the crate downloads and sherpa-onnx's archive between runs.
 exec docker run --rm --platform "linux/$arch" ${extra[@]+"${extra[@]}"} \
-    -v "$repo_dir":/murmur \
-    -v "murmur-cargo-registry-$arch":/usr/local/cargo/registry \
-    -w /murmur \
-    -e CARGO_TARGET_DIR="/murmur/target/linux-docker-$arch" \
+    -v "$repo_dir":/squawk \
+    -v "squawk-cargo-registry-$arch":/usr/local/cargo/registry \
+    -w /squawk \
+    -e CARGO_TARGET_DIR="/squawk/target/linux-docker-$arch" \
     -e CARGO_TERM_COLOR=always \
     "$image" "$@"

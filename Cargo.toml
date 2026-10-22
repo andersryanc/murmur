@@ -8,12 +8,12 @@ version = "0.1.0"
 license = "MIT"
 
 [workspace.dependencies]
-murmur-core = { path = "crates/murmur-core" }
-murmur-stt = { path = "crates/murmur-stt" }
-murmur-audio = { path = "crates/murmur-audio" }
-murmur-platform = { path = "crates/murmur-platform" }
-murmur-control = { path = "crates/murmur-control" }
-murmur-engine = { path = "crates/murmur-engine" }
+squawk-core = { path = "crates/squawk-core" }
+squawk-stt = { path = "crates/squawk-stt" }
+squawk-audio = { path = "crates/squawk-audio" }
+squawk-platform = { path = "crates/squawk-platform" }
+squawk-control = { path = "crates/squawk-control" }
+squawk-engine = { path = "crates/squawk-engine" }
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

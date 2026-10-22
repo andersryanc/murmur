@@ -1,0 +1,756 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Dictionary</title>
+<!--
+  The Dictionary window's page. The app (dictionary_window/webview.rs) shows it in a web view and
+  talks to it over IPC:
+    page → app   window.ipc.postMessage(JSON): {type: "ready"}, {type: "save", dictionary},
+                 {type: "reveal"}, {type: "close"}
+    app → page   squawk.load({dictionary, file, error}), squawk.saved({error})
+  The page owns the editing; the app only reads, writes and watches dictionary.json.
+-->
+<style>
+:root {
+  color-scheme: light dark;
+  --accent: #007aff;
+  --text: rgba(0, 0, 0, 0.85);
+  --secondary: rgba(0, 0, 0, 0.5);
+  --tertiary: rgba(0, 0, 0, 0.26);
+  --separator: rgba(0, 0, 0, 0.07);
+  --window: #ececec;
+  --box: #fff;
+  --box-border: rgba(0, 0, 0, 0.1);
+  --field: #fff;
+  --field-border: rgba(0, 0, 0, 0.14);
+  --button: #fff;
+  --button-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.16), 0 0.5px 1.5px rgba(0, 0, 0, 0.14);
+  --track: rgba(0, 0, 0, 0.065);
+  --selection-idle: rgba(0, 0, 0, 0.08);
+  --hover: rgba(0, 0, 0, 0.035);
+  --warning: #b25f00;
+  --ring: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #0a84ff;
+    --text: rgba(255, 255, 255, 0.86);
+    --secondary: rgba(255, 255, 255, 0.55);
+    --tertiary: rgba(255, 255, 255, 0.25);
+    --separator: rgba(255, 255, 255, 0.07);
+    --window: #2b2b2b;
+    --box: rgba(255, 255, 255, 0.04);
+    --box-border: rgba(255, 255, 255, 0.09);
+    --field: rgba(255, 255, 255, 0.055);
+    --field-border: rgba(255, 255, 255, 0.13);
+    --button: rgba(255, 255, 255, 0.17);
+    --button-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.35), inset 0 0.5px 0 rgba(255, 255, 255, 0.12);
+    --track: rgba(255, 255, 255, 0.07);
+    --selection-idle: rgba(255, 255, 255, 0.1);
+    --hover: rgba(255, 255, 255, 0.04);
+    --warning: #ffb340;
+    --ring: color-mix(in srgb, var(--accent) 65%, transparent);
+  }
+}
+/* WebKit on macOS knows the user's accent colour (System Settings › Appearance). */
+@supports (color: -apple-system-control-accent) {
+  :root { --accent: -apple-system-control-accent; }
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; overflow: hidden; }
+/* Transparent in the app, so the native window background shows; the preview paints it. */
+html { background: transparent; }
+html.preview { background: var(--window); }
+body {
+  font: 13px/1.35 -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
+  color: var(--text);
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+  -webkit-font-smoothing: antialiased;
+}
+button, input { font: inherit; color: inherit; margin: 0; }
+input { -webkit-user-select: text; user-select: text; }
+
+/* A replacement column's width, shared by the add row and the list so their text lines up. */
+:root { --column: calc((100vw - 40px - 64px - 14px - 18px) / 2); }
+.app { display: flex; flex-direction: column; height: 100%; padding: 14px 20px 12px; gap: 10px; }
+
+/* Header: the segmented control and the search field. */
+.header { display: flex; align-items: center; gap: 12px; }
+.segmented {
+  display: inline-flex; padding: 2px; border-radius: 7px; background: var(--track);
+}
+.segmented button {
+  border: 0; background: none; padding: 2px 14px; height: 20px; border-radius: 5px;
+  font-size: 12px; font-weight: 500; color: var(--text); outline: none;
+}
+.segmented button[aria-selected="true"] { background: var(--button); box-shadow: var(--button-shadow); }
+.segmented button:focus-visible { box-shadow: 0 0 0 3px var(--ring); }
+.segmented .count { color: var(--secondary); font-weight: 400; margin-left: 5px; font-variant-numeric: tabular-nums; }
+.spacer { flex: 1; }
+.search { position: relative; width: 180px; }
+.search svg { position: absolute; left: 7px; top: 50%; transform: translateY(-50%); width: 12px; height: 12px; color: var(--secondary); pointer-events: none; }
+.search input { padding-left: 24px; border-radius: 7px; }
+.search input:disabled { opacity: 0.5; }
+
+.explanation { margin: 0; font-size: 12px; color: var(--secondary); }
+.explanation b { font-weight: 500; color: var(--text); }
+.explanation .arrow { color: var(--tertiary); }
+
+/* Fields and buttons, sized like AppKit's regular controls. */
+.field {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 24px; padding: 2px 8px; border-radius: 6px;
+  background: var(--field); border: 1px solid var(--field-border); outline: none;
+}
+.field::placeholder { color: var(--tertiary); }
+.field:focus { border-color: transparent; box-shadow: 0 0 0 3.5px var(--ring); }
+.button {
+  height: 24px; padding: 0 12px; border: 0; border-radius: 6px; background: var(--button);
+  box-shadow: var(--button-shadow); white-space: nowrap; outline: none;
+}
+.button:active { filter: brightness(0.94); }
+.button:focus-visible { box-shadow: var(--button-shadow), 0 0 0 3px var(--ring); }
+.button.default:not(:disabled) { background: var(--accent); color: #fff; box-shadow: 0 0.5px 1.5px rgba(0, 0, 0, 0.2); }
+.button:disabled { opacity: 0.45; }
+
+/* The add row shares the list's columns, so new entries line up with existing ones. */
+.columns { display: grid; grid-template-columns: 1fr 64px; gap: 8px; align-items: center; }
+.columns.pair { grid-template-columns: var(--column) 14px var(--column) 64px; gap: 6px; }
+.pair .arrow { text-align: center; color: var(--tertiary); }
+.add .button { width: 64px; padding: 0; }
+.add-field { position: relative; }
+.badge {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%); pointer-events: none;
+  font-size: 11px; color: var(--warning);
+}
+.badge:empty { display: none; }
+.field.has-badge { padding-right: 96px; }
+
+/* The list. */
+.list {
+  flex: 1; min-height: 0; overflow-y: auto; border-radius: 8px; padding: 5px;
+  background: var(--box); border: 1px solid var(--box-border); outline: none; position: relative;
+}
+.row {
+  display: grid; grid-template-columns: 1fr 22px; align-items: center;
+  height: 26px; padding: 0 2px 0 6px; border-radius: 5px; position: relative;
+}
+.row.pair { grid-template-columns: var(--column) 14px 1fr 22px; gap: 6px; }
+/* The fields' text is inset from their border; the row's arrow sits where the add row's does. */
+.row.pair .arrow { position: relative; left: -9px; }
+.row + .row::before {
+  content: ""; position: absolute; left: 6px; right: 6px; top: 0; height: 1px; background: var(--separator);
+}
+.row.selected::before, .row.selected + .row::before, .row.editing::before, .row.editing + .row::before { display: none; }
+.row:hover { background: var(--hover); }
+.row.selected { background: var(--selection-idle); }
+.list:focus .row.selected { background: var(--accent); color: #fff; }
+.list:focus .row.selected .arrow { color: rgba(255, 255, 255, 0.7); }
+.row.flash { animation: flash 1.2s ease-out; }
+.row.match { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--warning) 70%, transparent); }
+@keyframes flash { from { background: color-mix(in srgb, var(--accent) 28%, transparent); } }
+.cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cell.editing { overflow: visible; }
+.cell input {
+  width: calc(100% + 6px); margin-left: -6px; height: 22px; padding: 1px 5px; border-radius: 4px;
+  background: var(--field); border: 1px solid var(--field-border); outline: none; color: var(--text);
+  box-shadow: 0 0 0 3px var(--ring); border-color: transparent;
+}
+.row.editing { background: none; color: var(--text); }
+.delete {
+  width: 18px; height: 18px; padding: 0; border: 0; background: none; border-radius: 50%;
+  color: var(--tertiary); display: grid; place-items: center; visibility: hidden; outline: none;
+}
+.delete svg { width: 14px; height: 14px; }
+.row:hover .delete, .row.selected .delete { visibility: visible; }
+.delete:hover { color: var(--secondary); }
+.list:focus .row.selected .delete { color: rgba(255, 255, 255, 0.75); }
+.list:focus .row.selected .delete:hover { color: #fff; }
+.row.editing .delete { visibility: hidden; }
+
+.empty {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 24px 40px; gap: 4px; pointer-events: none;
+}
+.empty .title { font-size: 13px; font-weight: 600; color: var(--secondary); }
+.empty .detail { font-size: 12px; color: var(--secondary); max-width: 320px; }
+
+/* Footer: counts, or a message with an action; Show in Finder. */
+.footer { display: flex; align-items: center; gap: 8px; min-height: 24px; font-size: 12px; }
+.status { color: var(--secondary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status.error { color: var(--warning); }
+.link { border: 0; background: none; padding: 0; color: var(--accent); font-size: 12px; outline: none; }
+.link:focus-visible { text-decoration: underline; }
+.footer .button { height: 22px; font-size: 12px; padding: 0 10px; }
+
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="segmented" role="tablist">
+      <button role="tab" id="tab-words" data-tab="words" title="⌘1">Words<span class="count" id="count-words"></span></button>
+      <button role="tab" id="tab-replacements" data-tab="replacements" title="⌘2">Replacements<span class="count" id="count-replacements"></span></button>
+    </div>
+    <div class="spacer"></div>
+    <label class="search">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6.8" cy="6.8" r="5"/><path d="M10.5 10.5 14.5 14.5"/></svg>
+      <input class="field" id="search" type="search" placeholder="Search" spellcheck="false" autocomplete="off" title="⌘F">
+    </label>
+  </div>
+
+  <p class="explanation" id="explain-words">
+    Names and jargon Squawk should spell your way. Cleanup uses them to fix near-misses, like <b>Plyhdrn</b> or <b>Kubernetes</b>.
+  </p>
+  <p class="explanation" id="explain-replacements" hidden>
+    Exact swaps made in every dictation, even with cleanup off. Any case, whole words only:
+    <b>cube control</b> <span class="arrow">→</span> <b>kubectl</b>.
+  </p>
+
+  <div class="add columns" id="add-words">
+    <div class="add-field">
+      <input class="field" id="word" placeholder="Add a word or name" spellcheck="false" autocomplete="off">
+      <span class="badge" id="word-badge"></span>
+    </div>
+    <button class="button" id="add-word">Add</button>
+  </div>
+  <div class="add columns pair" id="add-replacements" hidden>
+    <div class="add-field">
+      <input class="field" id="from" placeholder="When I say…" spellcheck="false" autocomplete="off">
+      <span class="badge" id="from-badge"></span>
+    </div>
+    <span class="arrow">→</span>
+    <input class="field" id="to" placeholder="Write…" spellcheck="false" autocomplete="off">
+    <button class="button" id="add-rule">Add</button>
+  </div>
+
+  <div class="list" id="list" tabindex="0" role="listbox"></div>
+
+  <div class="footer">
+    <span class="status" id="status"></span>
+    <button class="link" id="undo" hidden>Undo</button>
+    <button class="button" id="reveal">Show in Finder</button>
+  </div>
+</div>
+
+<svg width="0" height="0" style="position: absolute">
+  <mask id="cross"><rect width="16" height="16" fill="#fff"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#000" stroke-width="1.6" stroke-linecap="round"/></mask>
+</svg>
+
+<script>
+"use strict";
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const post = (message) => window.ipc && window.ipc.postMessage(JSON.stringify(message));
+  // Script errors go to the app's log, the only place anyone would see them.
+  window.addEventListener("error", (event) => post({ type: "error", message: `${event.message} (line ${event.lineno})` }));
+
+  // Entries carry a runtime id so selection and editing survive re-sorting; the file doesn't.
+  let nextId = 1;
+  const state = {
+    words: [],          // [{id, text}]
+    replacements: [],   // [{id, from, to}]
+    tab: "words",
+    query: "",
+    selected: null,     // id in the current tab
+    editing: null,      // {id, field}
+    file: "dictionary.json",
+    error: null,        // the file couldn't be read or written
+  };
+  const undoStack = [];
+  let message = null;   // {text, undo} shown in the footer for a few seconds
+  let messageTimer = 0;
+
+  // MARK: - Text rules
+
+  /** Trimmed, with runs of spaces collapsed: what gets saved. */
+  const tidy = (s) => s.replace(/\s+/g, " ").trim();
+  /** How the app matches a replacement: any case, spaces, hyphens and commas alike. */
+  const ruleKey = (s) => s.toLowerCase().split(/[\s,\-]+/).filter(Boolean).join(" ");
+  const findWord = (text, except) => state.words.find((w) => w.text === text && w.id !== except);
+  const findRule = (from, except) => {
+    const key = ruleKey(from);
+    return key ? state.replacements.find((r) => ruleKey(r.from) === key && r.id !== except) : undefined;
+  };
+  const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
+  const escape = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+  // MARK: - Data in and out
+
+  const plain = () => ({
+    replacements: state.replacements.map(({ from, to }) => ({ from, to })),
+    words: state.words.map((w) => w.text),
+  });
+
+  function setData(data) {
+    state.words = (data.words || []).map((text) => ({ id: nextId++, text }));
+    state.replacements = (data.replacements || []).map(({ from, to }) => ({ id: nextId++, from, to }));
+  }
+
+  /** Called by the app with the file's contents: on open, and when it changes on disk. */
+  function load({ dictionary, file, error }) {
+    if (file) state.file = file;
+    state.error = error || null;
+    if (dictionary && JSON.stringify(dictionary) !== JSON.stringify(plain())) {
+      const keep = selectedValue();
+      setData(dictionary);
+      // Changed outside the window: an undo would overwrite those changes.
+      undoStack.length = 0;
+      state.editing = null;
+      state.selected = keep ? idForValue(keep) : null;
+    }
+    render();
+  }
+
+  function saved({ error }) {
+    state.error = error || null;
+    renderFooter();
+  }
+
+  /** Every change goes through here: remembered for undo, then saved. */
+  function change(mutate) {
+    undoStack.push(JSON.stringify(plain()));
+    if (undoStack.length > 100) undoStack.shift();
+    mutate();
+    post({ type: "save", dictionary: plain() });
+  }
+
+  function undo() {
+    const previous = undoStack.pop();
+    if (!previous) return;
+    const keep = selectedValue();
+    setData(JSON.parse(previous));
+    state.selected = keep ? idForValue(keep) : null;
+    state.editing = null;
+    post({ type: "save", dictionary: plain() });
+    showMessage(null);
+    render();
+  }
+
+  // MARK: - Selection helpers
+
+  const entries = () => (state.tab === "words" ? state.words : state.replacements);
+  const entry = (id) => entries().find((e) => e.id === id);
+  const label = (e) => (state.tab === "words" ? e.text : e.from);
+  const selectedValue = () => {
+    const e = state.selected != null && entry(state.selected);
+    return e ? JSON.stringify(state.tab === "words" ? e.text : [e.from, e.to]) : null;
+  };
+  const idForValue = (value) => {
+    const e = entries().find((e) => JSON.stringify(state.tab === "words" ? e.text : [e.from, e.to]) === value);
+    return e ? e.id : null;
+  };
+
+  /** The entries shown: filtered by the search, sorted alphabetically. */
+  function visible() {
+    const q = state.query.toLowerCase();
+    const shown = entries().filter((e) =>
+      !q || (state.tab === "words" ? e.text.toLowerCase().includes(q)
+        : e.from.toLowerCase().includes(q) || e.to.toLowerCase().includes(q)));
+    return shown.sort((a, b) => collator.compare(label(a), label(b)) || collator.compare(a.to || "", b.to || ""));
+  }
+
+  // MARK: - Rendering
+
+  // A filled circle with the cross cut out (the mask is defined once, at the end of the body).
+  const deleteIcon = '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor" mask="url(#cross)"/></svg>';
+  let rendering = false;
+
+  function cellHTML(e, field) {
+    if (state.editing && state.editing.id === e.id && state.editing.field === field) {
+      return `<span class="cell editing" data-field="${field}"><input data-edit="${field}" value="${escape(e[field])}" spellcheck="false" autocomplete="off"></span>`;
+    }
+    return `<span class="cell" data-field="${field}">${escape(e[field])}</span>`;
+  }
+
+  function renderList() {
+    const list = $("list");
+    const rows = visible();
+    if (state.selected != null && !rows.some((e) => e.id === state.selected)) state.selected = null;
+    const pair = state.tab === "replacements";
+    let html = rows.map((e) => {
+      const classes = ["row"];
+      if (pair) classes.push("pair");
+      if (e.id === state.selected) classes.push("selected");
+      if (state.editing && state.editing.id === e.id) classes.push("editing");
+      const cells = pair
+        ? `${cellHTML(e, "from")}<span class="arrow">→</span>${cellHTML(e, "to")}`
+        : cellHTML(e, "text");
+      return `<div class="${classes.join(" ")}" data-id="${e.id}" role="option">${cells}<button class="delete" tabindex="-1" title="Delete">${deleteIcon}</button></div>`;
+    }).join("");
+    if (!rows.length) {
+      const [title, detail] = state.query
+        ? ["No matches", `Nothing ${pair ? "in your replacements" : "in your words"} contains “${escape(state.query)}”.`]
+        : pair
+          ? ["No replacements yet", "Type what you say and what Squawk should write instead, then press Return."]
+          : ["No words yet", "Add names, product names and jargon you use, then press Return."];
+      html = `<div class="empty"><div class="title">${title}</div><div class="detail">${detail}</div></div>`;
+    }
+    rendering = true;
+    list.innerHTML = html;
+    const input = list.querySelector("input[data-edit]");
+    if (input) {
+      input.focus();
+      input.select();
+    }
+    rendering = false;
+    updateMatches();
+  }
+
+  function renderFooter() {
+    const status = $("status");
+    status.classList.toggle("error", !!state.error);
+    $("undo").hidden = !(message && message.undo && !state.error);
+    if (state.error) {
+      status.textContent = state.error;
+      status.title = state.error;
+    } else if (message) {
+      status.textContent = message.text;
+      status.title = "";
+    } else {
+      const w = state.words.length, r = state.replacements.length;
+      status.textContent = `${w} word${w === 1 ? "" : "s"}, ${r} replacement${r === 1 ? "" : "s"}`;
+      status.title = state.file;
+    }
+  }
+
+  function render() {
+    const words = state.tab === "words";
+    for (const button of document.querySelectorAll(".segmented button")) {
+      button.setAttribute("aria-selected", String(button.dataset.tab === state.tab));
+    }
+    $("count-words").textContent = state.words.length || "";
+    $("count-replacements").textContent = state.replacements.length || "";
+    $("explain-words").hidden = !words;
+    $("explain-replacements").hidden = words;
+    $("add-words").hidden = !words;
+    $("add-replacements").hidden = words;
+    $("search").disabled = !entries().length && !state.query;
+    renderList();
+    renderFooter();
+  }
+
+  function showMessage(text, withUndo) {
+    clearTimeout(messageTimer);
+    message = text ? { text, undo: !!withUndo } : null;
+    if (message) messageTimer = setTimeout(() => { message = null; renderFooter(); }, 6000);
+    renderFooter();
+  }
+
+  /** Scrolls an entry into view and briefly highlights it, without taking focus. */
+  function reveal(id) {
+    const row = $("list").querySelector(`[data-id="${id}"]`);
+    if (!row) return;
+    row.scrollIntoView({ block: "nearest" });
+    row.classList.remove("flash");
+    void row.offsetWidth;
+    row.classList.add("flash");
+  }
+
+  /** While typing in the add row, outline the entry it would duplicate and say so. */
+  function updateMatches() {
+    let match = null;
+    if (state.tab === "words") {
+      const text = tidy($("word").value);
+      match = text ? findWord(text) : null;
+      $("word-badge").textContent = match ? "Already added" : "";
+      $("word").classList.toggle("has-badge", !!match);
+      $("add-word").disabled = !text || !!match;
+      $("add-word").classList.toggle("default", !!text && !match);
+    } else {
+      const from = tidy($("from").value), to = tidy($("to").value);
+      match = from ? findRule(from) : null;
+      const same = match && match.to === to;
+      $("from-badge").textContent = match ? (same || !to ? "Already added" : "Will update") : "";
+      $("from").classList.toggle("has-badge", !!match);
+      $("add-rule").textContent = match && to && !same ? "Update" : "Add";
+      $("add-rule").disabled = !from || !to || same;
+      $("add-rule").classList.toggle("default", !!(from && to && !same));
+    }
+    for (const row of $("list").querySelectorAll(".row")) {
+      row.classList.toggle("match", !!match && Number(row.dataset.id) === match.id);
+    }
+    if (match) {
+      const row = $("list").querySelector(`[data-id="${match.id}"]`);
+      if (row) row.scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  // MARK: - Adding
+
+  function addWords(texts) {
+    const fresh = [];
+    for (const raw of texts) {
+      const text = tidy(raw);
+      if (text && !findWord(text) && !fresh.includes(text)) fresh.push(text);
+    }
+    const existing = texts.map(tidy).filter(Boolean).map((t) => findWord(t)).find(Boolean);
+    $("word").value = "";
+    if (!fresh.length) {
+      updateMatches();
+      if (existing) reveal(existing.id);
+      return;
+    }
+    clearSearchIfHiding(fresh);
+    let last;
+    change(() => fresh.forEach((text) => { last = { id: nextId++, text }; state.words.push(last); }));
+    showMessage(fresh.length === 1 ? `Added “${fresh[0]}”.` : `Added ${fresh.length} words.`, true);
+    render();
+    reveal(last.id);
+  }
+
+  function addRule() {
+    const fromField = $("from"), toField = $("to");
+    const from = tidy(fromField.value), to = tidy(toField.value);
+    if (!from) return fromField.focus();
+    if (!to) return toField.focus();
+    const existing = findRule(from);
+    fromField.value = toField.value = "";
+    fromField.focus();
+    let id;
+    if (existing && existing.to === to) {
+      id = existing.id;
+    } else if (existing) {
+      id = existing.id;
+      change(() => { existing.to = to; });
+      showMessage(`Updated “${existing.from}”.`, true);
+    } else {
+      id = nextId++;
+      clearSearchIfHiding([from, to]);
+      change(() => state.replacements.push({ id, from, to }));
+      showMessage(`Added “${from}”.`, true);
+    }
+    render();
+    reveal(id);
+  }
+
+  function clearSearchIfHiding(texts) {
+    const q = state.query.toLowerCase();
+    if (q && !texts.some((t) => t.toLowerCase().includes(q))) {
+      state.query = $("search").value = "";
+    }
+  }
+
+  // MARK: - Editing in place
+
+  function startEdit(id, field) {
+    if (!entry(id)) return;
+    state.selected = id;
+    state.editing = { id, field: field || (state.tab === "words" ? "text" : "from") };
+    renderList();
+  }
+
+  /** Ends the edit; `next` moves on to the other field of a replacement (Tab). */
+  function finishEdit(save, next) {
+    const editing = state.editing;
+    if (!editing) return;
+    state.editing = null;
+    const e = entry(editing.id);
+    const input = $("list").querySelector("input[data-edit]");
+    if (e && input && save) {
+      const value = tidy(input.value);
+      let problem = null;
+      if (editing.field === "text" && findWord(value, e.id)) problem = `“${value}” is already in your words.`;
+      else if (editing.field === "from" && findRule(value, e.id)) problem = `There’s already a replacement for “${value}”.`;
+      if (problem) showMessage(problem);
+      // An emptied field goes back to what it was; delete is the way to remove an entry.
+      if (value && !problem && value !== e[editing.field]) {
+        change(() => { e[editing.field] = value; });
+      }
+    }
+    if (next && e) {
+      state.editing = { id: e.id, field: next };
+      renderList();
+      return;
+    }
+    renderList();
+    $("list").focus({ preventScroll: true });
+  }
+
+  // MARK: - Deleting
+
+  function remove(id) {
+    const rows = visible();
+    const index = rows.findIndex((e) => e.id === id);
+    const e = entry(id);
+    if (!e) return;
+    const after = rows[index + 1] || rows[index - 1];
+    change(() => {
+      const list = entries();
+      list.splice(list.indexOf(e), 1);
+    });
+    if (state.selected === id) state.selected = after ? after.id : null;
+    showMessage(`Deleted “${label(e)}”.`, true);
+    render();
+  }
+
+  // MARK: - Tabs and focus
+
+  function setTab(tab) {
+    if (state.tab === tab) return;
+    if (state.editing) finishEdit(true);
+    state.tab = tab;
+    state.selected = null;
+    state.query = $("search").value = "";
+    render();
+    focusAdd();
+  }
+
+  function focusAdd() {
+    const field = state.tab === "words" ? $("word") : $("from");
+    field.focus();
+  }
+
+  function moveSelection(delta) {
+    const rows = visible();
+    if (!rows.length) return;
+    let index = rows.findIndex((e) => e.id === state.selected);
+    index = index < 0 ? (delta > 0 ? 0 : rows.length - 1) : Math.max(0, Math.min(rows.length - 1, index + delta));
+    state.selected = rows[index].id;
+    renderList();
+    const row = $("list").querySelector(".row.selected");
+    if (row) row.scrollIntoView({ block: "nearest" });
+  }
+
+  // MARK: - Events
+
+  for (const button of document.querySelectorAll(".segmented button")) {
+    button.addEventListener("click", () => setTab(button.dataset.tab));
+  }
+
+  $("search").addEventListener("input", (event) => {
+    state.query = event.target.value.trim();
+    renderList();
+  });
+  $("search").addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && event.target.value) {
+      event.preventDefault();
+      state.query = event.target.value = "";
+      renderList();
+    } else if (event.key === "ArrowDown" || event.key === "Enter") {
+      event.preventDefault();
+      $("list").focus();
+      if (state.selected == null) moveSelection(1);
+    }
+  });
+
+  $("word").addEventListener("input", updateMatches);
+  $("word").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") { event.preventDefault(); addWords([event.target.value]); }
+    else if (event.key === "ArrowDown") { event.preventDefault(); $("list").focus(); moveSelection(1); }
+  });
+  // Pasting several lines adds one word per line.
+  $("word").addEventListener("paste", (event) => {
+    const text = event.clipboardData.getData("text/plain");
+    if (/[\r\n]/.test(text)) {
+      event.preventDefault();
+      addWords(text.split(/[\r\n]+/));
+    }
+  });
+  $("add-word").addEventListener("click", () => { addWords([$("word").value]); $("word").focus(); });
+
+  // Typing "->" or "→" in the first field moves on to the second, so "x -> y" can be typed in one go.
+  $("from").addEventListener("input", (event) => {
+    const parts = event.target.value.split(/\s*(?:->|→|=>)\s*/);
+    if (parts.length > 1) {
+      event.target.value = parts[0];
+      $("to").value = parts.slice(1).join(" ") + $("to").value;
+      $("to").focus();
+    }
+    updateMatches();
+  });
+  $("to").addEventListener("input", updateMatches);
+  for (const id of ["from", "to"]) {
+    $(id).addEventListener("keydown", (event) => {
+      if (event.key === "Enter") { event.preventDefault(); addRule(); }
+      else if (event.key === "ArrowDown") { event.preventDefault(); $("list").focus(); moveSelection(1); }
+    });
+  }
+  $("add-rule").addEventListener("click", addRule);
+
+  const list = $("list");
+  list.addEventListener("mousedown", (event) => {
+    if (event.target.closest("input")) return;
+    const row = event.target.closest(".row");
+    const button = event.target.closest(".delete");
+    event.preventDefault(); // keep the focus handling below in charge
+    if (state.editing) finishEdit(true);
+    if (button && row) { remove(Number(row.dataset.id)); list.focus(); return; }
+    // A double-click is caught here rather than with "dblclick": the first click re-renders the
+    // list, replacing the row under the pointer, and WebKit then never fires dblclick on it.
+    if (row && event.detail >= 2) {
+      const cell = event.target.closest(".cell");
+      startEdit(Number(row.dataset.id), cell && cell.dataset.field);
+      return;
+    }
+    state.selected = row ? Number(row.dataset.id) : null;
+    list.focus();
+    renderList();
+  });
+  list.addEventListener("keydown", (event) => {
+    if (event.target !== list) return;
+    if (event.key === "ArrowDown") { event.preventDefault(); moveSelection(1); }
+    else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      const rows = visible();
+      if (rows.length && rows[0].id === state.selected) { state.selected = null; renderList(); focusAdd(); }
+      else moveSelection(-1);
+    }
+    else if (event.key === "Enter" && state.selected != null) { event.preventDefault(); startEdit(state.selected); }
+    else if ((event.key === "Backspace" || event.key === "Delete") && state.selected != null) {
+      event.preventDefault();
+      remove(state.selected);
+    }
+    else if (event.key === "Escape") { event.preventDefault(); state.selected = null; renderList(); focusAdd(); }
+  });
+  // Keys inside an in-place edit.
+  list.addEventListener("keydown", (event) => {
+    if (!event.target.matches("input[data-edit]")) return;
+    if (event.key === "Enter") { event.preventDefault(); finishEdit(true); }
+    else if (event.key === "Escape") { event.preventDefault(); finishEdit(false); }
+    else if (event.key === "Tab" && state.tab === "replacements") {
+      event.preventDefault();
+      finishEdit(true, state.editing.field === "from" ? "to" : "from");
+    }
+  });
+  list.addEventListener("focusout", (event) => {
+    // Not for the input being replaced by a re-render, only for the user clicking away.
+    if (!rendering && event.target.matches("input[data-edit]") && state.editing) finishEdit(true);
+  });
+
+  $("undo").addEventListener("click", undo);
+  $("reveal").addEventListener("click", () => post({ type: "reveal" }));
+
+  document.addEventListener("keydown", (event) => {
+    const command = event.metaKey || event.ctrlKey;
+    if (!command || event.altKey || event.defaultPrevented) return;
+    const key = event.key.toLowerCase();
+    const inField = event.target.matches("input");
+    if (key === "w") { event.preventDefault(); post({ type: "close" }); }
+    else if (key === "f") { event.preventDefault(); $("search").focus(); $("search").select(); }
+    else if (key === "1") { event.preventDefault(); setTab("words"); }
+    else if (key === "2") { event.preventDefault(); setTab("replacements"); }
+    else if (key === "n") { event.preventDefault(); focusAdd(); }
+    else if (key === "z" && !event.shiftKey && (!inField || !event.target.value)) { event.preventDefault(); undo(); }
+    else if (key === "backspace" && !inField && state.selected != null) { event.preventDefault(); remove(state.selected); }
+  });
+  // Only text fields get the system's context menu (for spelling, copy and paste).
+  document.addEventListener("contextmenu", (event) => {
+    if (!event.target.matches("input")) event.preventDefault();
+  });
+
+  window.squawk = { load, saved };
+  render();
+  focusAdd();
+  post({ type: "ready" });
+})();
+</script>
+</body>
+</html>

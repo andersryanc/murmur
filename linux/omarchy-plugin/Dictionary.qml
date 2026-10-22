@@ -10,7 +10,7 @@ import qs.Ui
 // The Dictionary, a port of the Mac app's Dictionary window: your Words (spellings for the
 // cleanup step) and Replacements (exact "when I say X, write Y" rules). It's a modal card over
 // a scrim, like Omarchy's emoji picker, opened from the bar menu (or by
-// `omarchy-shell shell call plyhdrn.murmur openDictionary ""`).
+// `omarchy-shell shell call plyhdrn.squawk openDictionary ""`).
 //
 // dictionary.json stays the source of truth: the daemon re-reads it every dictation, and it can
 // still be edited by hand. Every change here saves the whole file at once, and an edit made on
@@ -20,7 +20,7 @@ Item {
   id: root
 
   readonly property string path: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config")
-    + "/murmur/dictionary.json"
+    + "/squawk/dictionary.json"
 
   property bool opened: false
   // Picked when the card opens, so it stays put if the focus moves to another monitor.
@@ -422,7 +422,7 @@ Item {
     screen: root.targetScreen
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
-    WlrLayershell.namespace: "murmur-dictionary"
+    WlrLayershell.namespace: "squawk-dictionary"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
     exclusionMode: ExclusionMode.Ignore
@@ -519,7 +519,7 @@ Item {
           textFormat: Text.StyledText
           text: root.pair
             ? "Exact swaps made in every dictation, even with cleanup off. Any case, whole words only: <b>cube control</b> → <b>kubectl</b>."
-            : "Names and jargon Murmur should spell your way. Cleanup uses them to fix near-misses, like <b>Plyhdrn</b> or <b>Kubernetes</b>."
+            : "Names and jargon Squawk should spell your way. Cleanup uses them to fix near-misses, like <b>Plyhdrn</b> or <b>Kubernetes</b>."
           color: root.foreground
           opacity: 0.7
           font.family: root.fontFamily
@@ -756,7 +756,7 @@ Item {
               textFormat: Text.PlainText
               text: root.query
                 ? "Nothing " + (root.pair ? "in your replacements" : "in your words") + " contains “" + root.query + "”."
-                : root.pair ? "Type what you say and what Murmur should write instead, then press Return."
+                : root.pair ? "Type what you say and what Squawk should write instead, then press Return."
                 : "Add names, product names and jargon you use, then press Return."
               color: root.foreground
               opacity: 0.6

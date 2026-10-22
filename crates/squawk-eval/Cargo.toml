@@ -1,0 +1,16 @@
+[package]
+name = "squawk-eval"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+squawk-core.workspace = true
+squawk-stt.workspace = true
+squawk-audio.workspace = true
+squawk-engine.workspace = true
+# Writing recorded clips.
+hound = "3.5.1"

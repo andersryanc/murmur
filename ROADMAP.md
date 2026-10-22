@@ -6,7 +6,7 @@ Ideas for what's next, roughly in priority order. Nothing here is committed to; 
 
 - [ ] **"Fix…" on recent dictations.** From the menu's recent dictations, correct a word and save it straight to the Dictionary as a replacement. The closest thing to learning from your edits.
 - [ ] **Hear your Words right the first time.** Bias Parakeet toward the Dictionary's Words with FluidAudio's vocabulary boosting (`configureVocabularyBoosting`), so the speech recognizer itself gets names right instead of the cleanup step fixing them afterwards. Likely needs an extra model download; measure with the eval before and after.
-- [ ] **Try other local cleanup models.** `qwen3.5:9b` sometimes drops "yeah" in "yeah, okay" and invents headings in notes. Compare newer small models with `murmur-eval bench --cleaner ollama:<model>`.
+- [ ] **Try other local cleanup models.** `qwen3.5:9b` sometimes drops "yeah" in "yeah, okay" and invents headings in notes. Compare newer small models with `squawk-eval bench --cleaner ollama:<model>`.
 
 ## Speed
 
@@ -19,12 +19,11 @@ Ideas for what's next, roughly in priority order. Nothing here is committed to; 
 - [ ] **First-run onboarding.** Walk through Microphone and Accessibility permissions, the fn key setting ("Press 🌐 key to: Do Nothing"), the API key, and a test dictation.
 - [ ] **Settings window.** Paste the Anthropic API key in the app (stored in the Keychain) instead of using the `security` command.
 
-Murmur is build-it-yourself: no prebuilt releases, Developer ID or notarization.
+Squawk is build-it-yourself: no prebuilt releases, Developer ID or notarization.
 
 ## macOS
 
 - [ ] **An install script.** Run `scripts/bundle-macos.sh` and copy the app to `~/Applications`, so it runs from a stable path rather than `target/`.
-- [ ] **Take over the bundle ID.** Move from `com.plyhdrn.murmur-rs` (from when it ran beside the Swift app) to `com.plyhdrn.murmur`. Everyone grants Microphone and Accessibility once more.
 
 ## Linux
 
@@ -33,7 +32,7 @@ Murmur is build-it-yourself: no prebuilt releases, Developer ID or notarization.
 
 ## Windows
 
-- [ ] **The platform layer.** `murmur-platform` has a Windows stub: hotkey, paste, frontmost app.
+- [ ] **The platform layer.** `squawk-platform` has a Windows stub: hotkey, paste, frontmost app.
 - [ ] **Check whether signing matters.** A locally built `.exe` should need none (SmartScreen only checks downloaded files); confirm on a real machine.
 
 ## Known issues
