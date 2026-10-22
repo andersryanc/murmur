@@ -48,9 +48,15 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      # sherpa-onnx's build script downloads its prebuilt libraries into target/, outside what
+      # the cache keeps. A restored cache skips the build script, so without them too the macOS
+      # link (shared libraries there) fails with "library 'sherpa-onnx-c-api' not found". Bump
+      # the prefix to drop a cache saved without them.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
+          prefix-key: v1-rust
+          cache-directories: rust/target/sherpa-onnx-prebuilt
 
       - name: Format
         run: cargo fmt --all --check
