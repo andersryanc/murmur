@@ -6,15 +6,28 @@
 # Signing uses the hardened runtime with the audio-input entitlement, which macOS requires
 # before it will show the microphone prompt to a hardened app.
 #
+# Murmur isn't distributed prebuilt: you build and sign it on the Mac that runs it. A
+# self-signed certificate is enough for that (see "Signing" in the README), and macOS keeps the
+# app's permissions across rebuilds as long as the certificate stays the same.
+#
 # Usage: rust/scripts/bundle-macos.sh
-# Env:   MURMUR_SIGN_IDENTITY  codesign identity (default: the Apple Development certificate)
+# Env:   MURMUR_SIGN_IDENTITY  codesign identity (default: "Murmur Self-Signed")
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 ROOT=$(pwd)
-IDENTITY=${MURMUR_SIGN_IDENTITY:-"Apple Development: Ryan Anderson (N6KL49FYD2)"}
+IDENTITY=${MURMUR_SIGN_IDENTITY:-"Murmur Self-Signed"}
 BUNDLE_ID=com.plyhdrn.murmur-rs
 APP="$ROOT/target/Murmur.app"
+
+# Without -v, so a self-signed certificate counts even though no root trusts it.
+if ! security find-identity -p codesigning | grep -qF "\"$IDENTITY"; then
+    echo "No code-signing certificate named \"$IDENTITY\" in your Keychain." >&2
+    echo "Create one as described under \"Signing\" in the README, or set MURMUR_SIGN_IDENTITY" >&2
+    echo "to one of these:" >&2
+    security find-identity -p codesigning | sed -n 's/.*"\(.*\)".*/  \1/p' | sort -u >&2
+    exit 1
+fi
 
 VERSION=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version *= *"\(.*\)"/\1/p' Cargo.toml)
 # Build number: commits on this branch, so every bundle from a new commit sorts after the last.

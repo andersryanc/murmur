@@ -18,13 +18,15 @@ Ideas for what's next, roughly in priority order. Nothing here is committed to; 
 - [ ] **Branding.** App icon, a proper menu-bar glyph, and a final palette for the overlay.
 - [ ] **First-run onboarding.** Walk through Microphone and Accessibility permissions, the fn key setting ("Press 🌐 key to: Do Nothing"), the API key, and a test dictation.
 - [ ] **Settings window.** Paste the Anthropic API key in the app (stored in the Keychain) instead of using the `security` command.
-- [ ] **Distribution.** Sign with a personal Developer ID, notarize, and ship updates (e.g. Sparkle).
+
+Murmur is build-it-yourself: no prebuilt releases, Developer ID or notarization.
 
 ## Retire the Swift app
 
 - [ ] **Port the eval to Rust.** `murmur eval record/run/bench/clean` against the sherpa-onnx Parakeet the app actually runs, then delete `Eval/`.
 - [ ] **Make `prompt.rs` the only copy of the cleanup prompt.** Drop the test that compares it with `CleanupPrompt.swift`.
-- [ ] **Release and install the Rust app.** Rust versions of `scripts/install.sh`, `release.sh` and `get.sh`, built on `rust/scripts/bundle-macos.sh`. Decide whether the bundle ID moves from `com.plyhdrn.murmur-rs` to `com.plyhdrn.murmur`, which keeps existing permission grants and the update path.
+- [ ] **Install the Rust app on macOS.** A script that runs `rust/scripts/bundle-macos.sh` and copies the app to `~/Applications`, like `scripts/install.sh` does for the Swift app, so it runs from a stable path rather than `rust/target/`.
+- [ ] **Take over the bundle ID.** Once the Swift app is gone, move from `com.plyhdrn.murmur-rs` to `com.plyhdrn.murmur`.
 - [ ] **Delete `App/` and `Core/`**, trim the "port of the Swift …" comments, and consider moving `rust/` to the repo root.
 
 ## Linux
@@ -35,6 +37,7 @@ Ideas for what's next, roughly in priority order. Nothing here is committed to; 
 ## Windows
 
 - [ ] **The platform layer.** `murmur-platform` has a Windows stub: hotkey, paste, frontmost app.
+- [ ] **Check whether signing matters.** A locally built `.exe` should need none (SmartScreen only checks downloaded files); confirm on a real machine.
 
 ## Known issues
 

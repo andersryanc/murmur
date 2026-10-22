@@ -24,12 +24,14 @@ Most of the quality comes from the cleanup pass. It fixes misheard words, drops 
 | [`App/`](App), [`Core/`](Core) | The original Swift macOS app and its `MurmurKit`/`MurmurCore` packages. Kept until the eval and the release scripts move to Rust; `Core/Sources/MurmurKit/CleanupPrompt.swift` is still the prompt's reference copy (see [The Swift app](#the-swift-app)). |
 | [`Eval/`](Eval) | Swift CLI harness that scores speech engines and the cleanup prompt against recordings of your voice. macOS only. |
 
+Murmur is open source and isn't distributed as a prebuilt app: you build it on the machine that runs it.
+
 ## macOS
 
-You need [Rust](https://rustup.rs) (`rustup default stable`) and a code-signing certificate: an Apple Development one, or a self-signed one (see [below](#signing-without-an-apple-account)).
+You need [Rust](https://rustup.rs) (`rustup default stable`), the Xcode Command Line Tools (`xcode-select --install`), and a self-signed code-signing certificate, which takes a minute to make and needs no Apple account (see [Signing](#signing)).
 
 ```bash
-MURMUR_SIGN_IDENTITY="Apple Development: …" rust/scripts/bundle-macos.sh   # release build, signed rust/target/Murmur.app
+rust/scripts/bundle-macos.sh   # release build, signed rust/target/Murmur.app
 open rust/target/Murmur.app
 tail -f ~/Library/Logs/Murmur/murmur.log
 ```
@@ -57,12 +59,16 @@ Hold **fn** (changeable in the menu), speak, and release. The text is pasted whe
 - **Clipboard:** the dictated text stays on the clipboard after pasting, so you can paste it again (or yourself, if no text field had focus).
 - **Settings** live in `~/Library/Application Support/Murmur/settings.json`.
 
-### Signing without an Apple account
+### Signing
 
-A self-signed certificate is only trusted on the Mac that made it, which is all a local build needs, and macOS keeps the permissions across rebuilds as long as you keep the certificate.
+macOS ties the Microphone and Accessibility permissions to the certificate an app is signed with, so Murmur has to be signed, and with the same certificate every time, or macOS asks again after each rebuild. A self-signed certificate does that: it's only trusted on the Mac that made it, which is all a build you run yourself needs.
 
 1. In **Keychain Access**, choose **Keychain Access › Certificate Assistant › Create a Certificate…**. Name it `Murmur Self-Signed`, set **Identity Type** to **Self-Signed Root** and **Certificate Type** to **Code Signing**, and click **Create**.
-2. Build with it: `MURMUR_SIGN_IDENTITY="Murmur Self-Signed" rust/scripts/bundle-macos.sh`. The first signing may ask to use the certificate's key; choose **Always Allow**.
+2. Run `rust/scripts/bundle-macos.sh`, which signs with `Murmur Self-Signed` by default. The first signing may ask to use the certificate's key; choose **Always Allow**.
+
+Keep the certificate: a new one, even with the same name, makes macOS ask for the permissions again. To sign with a different certificate you already have, such as an Apple Development one, set `MURMUR_SIGN_IDENTITY` to its name; the script lists the ones in your Keychain if it can't find it.
+
+Linux needs no signing.
 
 ## Linux
 
@@ -117,32 +123,12 @@ Run the binary directly rather than `swift run`, so macOS attributes the mic pro
 
 ## The Swift app
 
-The original macOS app, in `App/` and `Core/`. It's still what `scripts/release.sh` publishes and `scripts/get.sh` installs, until those move to Rust.
+The original macOS app, in `App/` and `Core/`, kept until the eval is ported. It needs Xcode 26 and XcodeGen, and signs with the same [self-signed certificate](#signing):
 
 ```bash
 brew install xcodegen   # once
-echo 'DEVELOPMENT_TEAM = <your Team ID>' > App/Signing.local.xcconfig   # once; see App/Signing.xcconfig
+printf 'MURMUR_SIGN_IDENTITY = Murmur Self-Signed\nDEVELOPMENT_TEAM =\n' > App/Signing.local.xcconfig   # once; see App/Signing.xcconfig
 ./scripts/install.sh    # build Release, install to /Applications (~/Applications without admin rights), launch
 ```
 
-It needs Xcode 26. If `xcodebuild` says it needs Xcode rather than the Command Line Tools, run `sudo xcode-select -s /Applications/Xcode.app`, or without admin rights, `export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. To sign with the [self-signed certificate](#signing-without-an-apple-account) instead of a Team ID:
-
-```bash
-printf 'MURMUR_SIGN_IDENTITY = Murmur Self-Signed\nDEVELOPMENT_TEAM =\n' > App/Signing.local.xcconfig
-```
-
-### Other Macs
-
-To use Murmur on a Mac that doesn't build it, publish a build from this one and install it there with a script. Releases are public, so `release.sh` only publishes builds signed with a **Developer ID Application** certificate (from the paid Apple Developer Program). It refuses Apple Development and self-signed builds, which are for your own Macs. Set `DEVELOPMENT_TEAM` to the team that owns the certificate; the script shows who signed the build and asks before publishing.
-
-```bash
-./scripts/release.sh    # here: build the current commit and publish it as a GitHub Release
-```
-
-On the other Mac (Apple Silicon, macOS 26), run this to install, and again to update. It needs no admin rights; without them it installs to `~/Applications`:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/andersryanc/murmur/main/scripts/get.sh | zsh
-```
-
-Releases aren't notarized yet. That's fine for `get.sh`, because `curl` doesn't quarantine what it downloads, so Gatekeeper doesn't check it; a copy downloaded in a browser would be blocked (System Settings › Privacy & Security › **Open Anyway** lets it through). Grant Microphone and Accessibility on first launch; updates keep them as long as they're signed with the same certificate. A renewed certificate makes macOS ask again. Store the [API key](#api-key) on that Mac too (`get.sh` reminds you). A managed work Mac may still refuse to run the app or to turn on Accessibility, depending on its policies.
+If `xcodebuild` says it needs Xcode rather than the Command Line Tools, run `sudo xcode-select -s /Applications/Xcode.app`, or without admin rights, `export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.

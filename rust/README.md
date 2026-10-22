@@ -19,7 +19,7 @@ between them are described in [CONTRACTS.md](CONTRACTS.md); user-facing setup is
 ## macOS
 
 ```bash
-scripts/bundle-macos.sh      # release build, signed target/Murmur.app (MURMUR_SIGN_IDENTITY picks the certificate)
+scripts/bundle-macos.sh      # release build, signed target/Murmur.app ("Murmur Self-Signed", or MURMUR_SIGN_IDENTITY)
 open target/Murmur.app
 tail -f ~/Library/Logs/Murmur/murmur.log
 ```

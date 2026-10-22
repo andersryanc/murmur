@@ -6,14 +6,13 @@
 //
 //   DEVELOPMENT_TEAM = ABCDE12345
 //
-// Or, with no Apple account, a self-signed certificate (see "Building without an Apple
-// account" in the README):
+// Or, with no Apple account, a self-signed certificate (see "Signing" in the README):
 //
 //   MURMUR_SIGN_IDENTITY = Murmur Self-Signed
 //   DEVELOPMENT_TEAM =
 //
-// MURMUR_SIGN_IDENTITY rather than CODE_SIGN_IDENTITY, so scripts/release.sh can override it on
-// the command line without also signing the Swift packages' targets.
+// MURMUR_SIGN_IDENTITY rather than CODE_SIGN_IDENTITY, so it can be overridden on the
+// xcodebuild command line without also signing the Swift packages' targets.
 MURMUR_SIGN_IDENTITY = Apple Development
 #include? "Signing.local.xcconfig"
 CODE_SIGN_IDENTITY = $(MURMUR_SIGN_IDENTITY)
