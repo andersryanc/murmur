@@ -1,9 +1,7 @@
-# Murmur
+# Developing Murmur
 
-Murmur, the push-to-talk dictation app: one codebase for macOS and Linux, with Windows to come.
-The crates and the interfaces
-between them are described in [CONTRACTS.md](CONTRACTS.md); user-facing setup is in the
-[top-level README](../README.md).
+One Rust workspace for macOS and Linux, with Windows to come. The interfaces between the crates
+are in [CONTRACTS.md](CONTRACTS.md); setup for using Murmur is in the [README](README.md).
 
 | Crate | What |
 |---|---|
@@ -14,7 +12,7 @@ between them are described in [CONTRACTS.md](CONTRACTS.md); user-facing setup is
 | `murmur-control` | The Linux daemon's control socket and its line protocol (Unix only) |
 | `murmur-engine` | The dictation loop both front ends share: recording, the queue, transcribe → Dictionary → cleanup → paste, model loading, warm-ups, notices |
 | `murmur` | The binary. macOS: the tray app (menu, recording pill, Dictionary window, launch at login). Linux: the CLI and daemon |
-| `murmur-eval` | The eval: records clips, scores the transcript (WER) and cleanup against them, and times cleaners. macOS and Linux; see "Eval harness" in the [top-level README](../README.md#eval-harness) |
+| `murmur-eval` | The eval: records clips, scores the transcript (WER) and cleanup against them, and times cleaners. macOS and Linux; see "Eval harness" in the [README](README.md#eval-harness) |
 
 ## macOS
 

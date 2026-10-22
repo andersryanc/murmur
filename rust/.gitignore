@@ -1,4 +1,0 @@
-/target
-# Eval recordings and reports stay local.
-/eval/clips/*.wav
-/eval/results/

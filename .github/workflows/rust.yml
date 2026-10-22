@@ -1,4 +1,4 @@
-# Formatting, lints and tests for the Rust workspace in rust/, on the two platforms Murmur ships
+# Formatting, lints and tests for the Rust workspace, on the two platforms Murmur ships
 # for: macOS (Apple Silicon) and Linux (x86_64, like the Omarchy machine). Clippy runs on both
 # because each OS compiles its own platform code. No releases are built here.
 name: Rust
@@ -18,10 +18,6 @@ env:
   CARGO_TERM_COLOR: always
   # Incremental builds only help locally; on CI they just make the cache bigger.
   CARGO_INCREMENTAL: 0
-
-defaults:
-  run:
-    working-directory: rust
 
 jobs:
   check:
@@ -49,8 +45,6 @@ jobs:
           components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rust
 
       # sherpa-onnx's build script would download its prebuilt libraries into target/, which
       # rust-cache prunes before saving: a run that restored the cache skipped the build script

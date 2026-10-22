@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds the Rust Murmur in release and assembles a signed rust/target/Murmur.app.
+# Builds Murmur in release and assembles a signed target/Murmur.app.
 #
 # The bundle ID is com.plyhdrn.murmur-rs, from when this ran beside the Swift app. macOS ties the
 # Accessibility and Microphone grants to it, so changing it means granting them again.
@@ -10,7 +10,7 @@
 # self-signed certificate is enough for that (see "Signing" in the README), and macOS keeps the
 # app's permissions across rebuilds as long as the certificate stays the same.
 #
-# Usage: rust/scripts/bundle-macos.sh
+# Usage: scripts/bundle-macos.sh
 # Env:   MURMUR_SIGN_IDENTITY  codesign identity (default: "Murmur Self-Signed")
 set -euo pipefail
 

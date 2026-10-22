@@ -103,7 +103,7 @@ pub fn run() -> ExitCode {
         check(
             plugin.join("manifest.json").is_file(),
             &format!("On-screen pill (Omarchy plugin) at {}", plugin.display()),
-            "Run rust/linux/install.sh, then: omarchy plugin enable plyhdrn.murmur",
+            "Run linux/install.sh, then: omarchy plugin enable plyhdrn.murmur",
         );
     } else {
         println!("· Not Omarchy: no on-screen pill, so notices go to notify-send");

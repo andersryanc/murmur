@@ -7,7 +7,7 @@ use anyhow::Context;
 use murmur_core::TargetContext;
 use serde::{Deserialize, Serialize};
 
-/// `rust/eval/`, found from this crate's location so the eval works from any directory.
+/// `eval/` at the repository root, found from this crate's location so the eval works from any directory.
 pub fn eval_dir() -> PathBuf {
     let crates = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap_or(Path::new("."));
     crates.parent().unwrap_or(crates).join("eval")

@@ -1,6 +1,6 @@
 //! `murmur-eval`: scores speech-to-text and the cleanup pass against recordings of your voice,
-//! with the same engine, prompt and Dictionary the app uses. Clips live in `rust/eval/clips/`
-//! and reports go to `rust/eval/results/`.
+//! with the same engine, prompt and Dictionary the app uses. Clips live in `eval/clips/` and
+//! reports go to `eval/results/`.
 
 mod clip;
 mod report;

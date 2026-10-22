@@ -13,8 +13,7 @@ set -euo pipefail
 arch="${MURMUR_DOCKER_ARCH:-amd64}"
 rust_image="rust:1.99.0-bookworm"
 image="murmur-linux-test:$arch"
-rust_dir="$(cd "$(dirname "$0")/.." && pwd)"
-repo_dir="$(dirname "$rust_dir")"
+repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
 
 # libasound2-dev and pkg-config for cpal (ALSA). sherpa-onnx's static Linux build is downloaded
 # by its build script and links against libstdc++, which the image already has.
@@ -46,7 +45,7 @@ fi
 exec docker run --rm --platform "linux/$arch" ${extra[@]+"${extra[@]}"} \
     -v "$repo_dir":/murmur \
     -v "murmur-cargo-registry-$arch":/usr/local/cargo/registry \
-    -w /murmur/rust \
-    -e CARGO_TARGET_DIR="/murmur/rust/target/linux-docker-$arch" \
+    -w /murmur \
+    -e CARGO_TARGET_DIR="/murmur/target/linux-docker-$arch" \
     -e CARGO_TERM_COLOR=always \
     "$image" "$@"

@@ -73,7 +73,7 @@ Omarchy already ships most of these. `pw-record` and `pw-play` are no longer use
 From the repository root:
 
 ```bash
-rust/linux/install.sh
+linux/install.sh
 ```
 
 This builds a release binary and installs `~/.local/bin/murmur`. On Omarchy it also installs the pill and bar menu plugin to `~/.config/omarchy/plugins/plyhdrn.murmur/` and puts it on the bar, left of the tray, the first time (`omarchy plugin disable plyhdrn.murmur` turns it off; drag the icon to move it). Run it again after pulling changes; it restarts the daemon if one is running.
@@ -183,7 +183,6 @@ When something fails, check `~/.local/state/murmur/murmur.log` first.
 ## Development
 
 ```bash
-cd rust
 cargo build -p murmur
 cargo run -p murmur -- doctor
 cargo test --workspace

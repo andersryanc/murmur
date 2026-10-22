@@ -23,12 +23,12 @@ Murmur is build-it-yourself: no prebuilt releases, Developer ID or notarization.
 
 ## macOS
 
-- [ ] **An install script.** Run `rust/scripts/bundle-macos.sh` and copy the app to `~/Applications`, so it runs from a stable path rather than `rust/target/`.
+- [ ] **An install script.** Run `scripts/bundle-macos.sh` and copy the app to `~/Applications`, so it runs from a stable path rather than `target/`.
 - [ ] **Take over the bundle ID.** Move from `com.plyhdrn.murmur-rs` (from when it ran beside the Swift app) to `com.plyhdrn.murmur`. Everyone grants Microphone and Accessibility once more.
 
 ## Linux
 
-- [ ] **Finish the Omarchy checklist.** Recording, sounds, pasting and the pill are confirmed on hardware; the rest is listed under "Status" in [`rust/linux/README.md`](rust/linux/README.md#status) (microphone choice, keyring, install and autostart, taps, notices).
+- [ ] **Finish the Omarchy checklist.** Recording, sounds, pasting and the pill are confirmed on hardware; the rest is listed under "Status" in [`linux/README.md`](linux/README.md#status) (microphone choice, keyring, install and autostart, taps, notices).
 - [ ] **Packaging.** An AUR `PKGBUILD`, so installing doesn't need the repo.
 
 ## Windows
