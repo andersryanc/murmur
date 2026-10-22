@@ -101,6 +101,15 @@ Item {
     }
   }
 
+  // The Dictionary card, opened from the bar menu with
+  // `omarchy-shell shell call plyhdrn.murmur openDictionary ""`. It lives here because this
+  // panel is the plugin's one always-loaded instance.
+  function openDictionary() {
+    dictionary.open()
+  }
+
+  Dictionary { id: dictionary }
+
   Component.onCompleted: resetLevels()
 
   Timer {
