@@ -21,16 +21,14 @@ Ideas for what's next, roughly in priority order. Nothing here is committed to; 
 
 Murmur is build-it-yourself: no prebuilt releases, Developer ID or notarization.
 
-## Retire the Swift app
+## macOS
 
-- [ ] **Make `prompt.rs` the only copy of the cleanup prompt.** Drop the test that compares it with `CleanupPrompt.swift`.
-- [ ] **Install the Rust app on macOS.** A script that runs `rust/scripts/bundle-macos.sh` and copies the app to `~/Applications`, like `scripts/install.sh` does for the Swift app, so it runs from a stable path rather than `rust/target/`.
-- [ ] **Take over the bundle ID.** Once the Swift app is gone, move from `com.plyhdrn.murmur-rs` to `com.plyhdrn.murmur`.
-- [ ] **Delete `App/` and `Core/`**, trim the "port of the Swift …" comments, and consider moving `rust/` to the repo root.
+- [ ] **An install script.** Run `scripts/bundle-macos.sh` and copy the app to `~/Applications`, so it runs from a stable path rather than `target/`.
+- [ ] **Take over the bundle ID.** Move from `com.plyhdrn.murmur-rs` (from when it ran beside the Swift app) to `com.plyhdrn.murmur`. Everyone grants Microphone and Accessibility once more.
 
 ## Linux
 
-- [ ] **Finish the Omarchy checklist.** Recording, sounds, pasting and the pill are confirmed on hardware; the rest is listed under "Status" in [`rust/linux/README.md`](rust/linux/README.md#status) (microphone choice, keyring, install and autostart, taps, notices).
+- [ ] **Finish the Omarchy checklist.** Recording, sounds, pasting and the pill are confirmed on hardware; the rest is listed under "Status" in [`linux/README.md`](linux/README.md#status) (microphone choice, keyring, install and autostart, taps, notices).
 - [ ] **Packaging.** An AUR `PKGBUILD`, so installing doesn't need the repo.
 
 ## Windows

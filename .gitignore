@@ -1,11 +1,5 @@
 .DS_Store
-.build/
-.swiftpm/
-xcuserdata/
-DerivedData/
-# Personal signing settings (Team ID)
-App/Signing.local.xcconfig
-
-# Generated
-App/Murmur.xcodeproj/
-build/
+/target
+# Eval recordings and reports stay local.
+/eval/clips/*.wav
+/eval/results/
