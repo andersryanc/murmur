@@ -13,8 +13,6 @@ Hyprland key bind ─▶ squawkctl start/stop ─▶ daemon ─▶ ALSA (pipewir
 - **The on-screen pill** (like the Mac pill) is an [Omarchy shell](https://omarchy.org) plugin in [`omarchy-plugin/`](omarchy-plugin). It shows the mic level while you speak, "Squawking…" while it works, and any problem for a moment afterwards.
 - **The bar menu** (like the Mac menu-bar menu) is in the same plugin: a mic icon in the Omarchy bar that turns red while recording and dims when the daemon isn't running. Click it for the cleanup mode and local model, the microphone, the sound effects, the last five dictations (click one to copy it), the Dictionary, and starting, restarting or quitting the daemon.
 
-Squawk used to be called Murmur. If you used it, see [Coming from Murmur](../README.md#coming-from-murmur) to move your settings, Dictionary, model and API key across.
-
 ## Status
 
 Tested on an Omarchy machine (Hyprland, PipeWire). Confirmed there (October 2026):

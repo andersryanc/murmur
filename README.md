@@ -89,33 +89,6 @@ security add-generic-password -s com.plyhdrn.squawk -a anthropic-api-key -w
 
 On Linux, it's read from the Secret Service keyring; [`linux/README.md`](linux/README.md) has the command.
 
-## Coming from Murmur
-
-Squawk used to be called Murmur, and it doesn't look for anything under the old name. To keep your settings, Dictionary and downloaded model, move them across before the first launch.
-
-On macOS, quit Murmur and delete `Murmur.app`, then:
-
-```bash
-mv ~/Library/Application\ Support/Murmur ~/Library/Application\ Support/Squawk
-```
-
-Store the [API key](#api-key) again under `com.plyhdrn.squawk`. The new bundle ID means granting Microphone and Accessibility once more. To keep signing with your old certificate, set `SQUAWK_SIGN_IDENTITY="Murmur Self-Signed"`.
-
-On Linux:
-
-```bash
-pkill -x murmur
-omarchy plugin disable plyhdrn.murmur
-rm -rf ~/.config/omarchy/plugins/plyhdrn.murmur ~/.local/bin/murmur
-mv ~/.config/murmur ~/.config/squawk
-mv ~/.local/share/murmur ~/.local/share/squawk
-secret-tool lookup service com.plyhdrn.murmur account anthropic-api-key \
-  | secret-tool store --label='Squawk' service com.plyhdrn.squawk account anthropic-api-key
-linux/install.sh
-```
-
-Then change `murmur` to `squawkctl` in your Hyprland autostart and key bindings.
-
 ## Eval harness
 
 `squawk-eval` scores speech-to-text and the cleanup prompt against recordings of your voice, with the same speech model, prompt and Dictionary as the app. It runs on macOS and Linux, and uses the same [API key](#api-key). The first run downloads the speech model if the app hasn't already.
