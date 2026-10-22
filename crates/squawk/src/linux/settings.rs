@@ -22,6 +22,8 @@ struct View {
     /// or `not running`.
     status: String,
     cleanup: CleanupMode,
+    /// Whether the menu lists Claude: once an API key is found, or while it's the current choice.
+    offer_claude: bool,
     ollama_model: String,
     /// Models pulled into Ollama; only looked up when cleanup is Ollama.
     local_models: Vec<String>,
@@ -58,6 +60,7 @@ pub fn show() -> anyhow::Result<()> {
         .and_then(|reply| serde_json::from_str(&reply).ok())
         .unwrap_or_default();
     let (microphones, default_microphone) = sources();
+    let has_api_key = squawk_core::api_key::load().is_some();
     let view = View {
         status,
         cleanup: settings.cleanup,
@@ -66,7 +69,8 @@ pub fn show() -> anyhow::Result<()> {
         } else {
             Vec::new()
         },
-        needs_api_key: settings.cleanup == CleanupMode::Claude && squawk_core::api_key::load().is_none(),
+        offer_claude: has_api_key || settings.cleanup == CleanupMode::Claude,
+        needs_api_key: settings.cleanup == CleanupMode::Claude && !has_api_key,
         ollama_model: settings.ollama_model,
         microphone: settings.microphone,
         microphones,

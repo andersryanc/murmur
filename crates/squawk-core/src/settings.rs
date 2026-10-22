@@ -49,12 +49,13 @@ impl Default for Hotkey {
     }
 }
 
-/// Which cleanup pass runs after transcription.
+/// Which cleanup pass runs after transcription. Local by default, so Squawk needs no account or
+/// API key; Claude is offered once a key is stored.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CleanupMode {
-    #[default]
     Claude,
+    #[default]
     Ollama,
     Off,
 }
@@ -79,10 +80,10 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             hotkey: Hotkey::default(),
-            cleanup: CleanupMode::Claude,
+            cleanup: CleanupMode::Ollama,
             ollama_model: "qwen3.5:9b".into(),
             microphone: None,
-            sounds: Some(SoundTheme::Wood),
+            sounds: Some(SoundTheme::Soft),
         }
     }
 }
@@ -188,7 +189,7 @@ mod tests {
     fn round_trips() {
         let path = temp_path();
         let settings = Settings {
-            cleanup: CleanupMode::Ollama,
+            cleanup: CleanupMode::Claude,
             ollama_model: "gemma3:4b".into(),
             microphone: Some("USB Mic".into()),
             sounds: None,
@@ -222,7 +223,7 @@ mod tests {
             }
         );
         assert_eq!(load_json(r#"{"sounds": "off"}"#).sounds, None);
-        assert_eq!(load_json(r#"{"sounds": 3}"#).sounds, Some(SoundTheme::Wood));
+        assert_eq!(load_json(r#"{"sounds": 3}"#).sounds, Some(SoundTheme::Soft));
     }
 
     #[test]
