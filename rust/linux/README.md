@@ -13,7 +13,7 @@ Hyprland key bind ─▶ murmur start/stop ─▶ daemon ─▶ ALSA (pipewire-a
 - **The on-screen pill** (like the Mac pill) is an [Omarchy shell](https://omarchy.org) plugin in [`omarchy-plugin/`](omarchy-plugin). It shows the mic level while you speak, "Murmuring…" while it works, and any problem for a moment afterwards.
 - **The bar menu** (like the Mac menu-bar menu) is in the same plugin: a mic icon in the Omarchy bar that turns red while recording and dims when the daemon isn't running. Click it for the cleanup mode and local model, the microphone, the sound effects, the last five dictations (click one to copy it), the Dictionary, and starting, restarting or quitting the daemon.
 
-This replaces the Swift Linux build (`Linux/` on the `linux-omarchy-setup` branch). It reads that build's `~/.config/murmur/config.json` and model folder as they are, so switching needs no setup beyond installing.
+This replaces the Swift Linux build (`Linux/`, removed from the repo; it's in git history before the Rust rewrite). It reads that build's `~/.config/murmur/config.json` and model folder as they are, so switching needs no setup beyond installing.
 
 ## Status
 
